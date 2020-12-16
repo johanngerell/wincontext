@@ -50,13 +50,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                     throw std::logic_error("i != sheet.cell_count");
 
                 auto t2 = std::chrono::high_resolution_clock::now();
-                auto duration_ns = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+                auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
 
-                std::string msg = "Done: ";
-                msg += std::to_string(duration_ns.count());
-                msg += " us";
+                std::string time_msg;
+                time_msg += "Time: ";
+                time_msg += std::to_string(duration_us.count());
+                time_msg += " us";
 
-                MessageBoxA(hwnd, msg.c_str(), "Done", MB_OK);
+                MessageBoxA(hwnd, time_msg.c_str(), "Done", MB_OK);
             }
 
             return 0;
@@ -82,7 +83,7 @@ constexpr SIZE client_size
     row_count * (cell_size.cy + cell_spacing) + cell_spacing + layer_count * 2
 };
 
-int WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
     const char* popup_class_name = register_window_class(WindowProc, "Window Context Test Class");
     const DWORD popup_style = WS_POPUPWINDOW | WS_CAPTION;
