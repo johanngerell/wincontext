@@ -1,6 +1,6 @@
 #include <chrono>
 #include <string>
-#include "userdata.h"
+#include "win32userdata.h"
 #include "win32api.h"
 
 struct cell_data
@@ -8,7 +8,7 @@ struct cell_data
     int row{};
     int col{};
     int layer{};
-    HWND hwnd{nullptr};
+    HWND hwnd{};
     bool visited{};
 };
 
