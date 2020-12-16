@@ -17,7 +17,16 @@ private:
 
 const char* register_window_class(WNDPROC wndproc, const char* name);
 
-HWND create_window(HWND parent, const char* class_name, const char* text, DWORD style,
-                   int x, int y, int width, int height, void* context = nullptr);
+struct window_info
+{
+    const char* class_name{};
+    const char* text{};
+    DWORD style{};
+    POINT position{};
+    SIZE size{};
+    HWND parent{};
+};
 
-SIZE window_size_for_client(int width, int height, DWORD style);
+HWND create_window(const window_info& info);
+
+SIZE window_size_for_client(SIZE client_size, DWORD window_style);

@@ -14,11 +14,11 @@ const char* register_window_class(WNDPROC wndproc, const char* name)
     return name;
 }
 
-HWND create_window(HWND parent, const char* class_name, const char* text, DWORD style,
-                   int x, int y, int width, int height, void* context)
+HWND create_window(const window_info& info)
 {
-    const HWND hwnd = CreateWindowA(class_name, text, style | WS_VISIBLE | (parent ? WS_CHILD : 0),
-                                    x, y, width, height, parent, nullptr, GetModuleHandle(nullptr), context);
+    const HWND hwnd = CreateWindowA(info.class_name, info.text, info.style | WS_VISIBLE | (info.parent ? WS_CHILD : 0),
+                                    info.position.x, info.position.y, info.size.cx, info.size.cy,
+                                    info.parent, nullptr, GetModuleHandle(nullptr), nullptr);
 
     if (!hwnd)
         throw win32_error{GetLastError(), "CreateWindowA"};
@@ -26,10 +26,10 @@ HWND create_window(HWND parent, const char* class_name, const char* text, DWORD 
     return hwnd;
 }
 
-SIZE window_size_for_client(int width, int height, DWORD style)
+SIZE window_size_for_client(SIZE client_size, DWORD window_style)
 {
-    RECT bounds{0, 0, width, height};
-    if (AdjustWindowRect(&bounds, style, FALSE) == 0)
+    RECT bounds{0, 0, client_size.cx, client_size.cy};
+    if (AdjustWindowRect(&bounds, window_style, FALSE) == 0)
         throw win32_error{GetLastError(), "AdjustWindowRect"};
 
     return {bounds.right - bounds.left, bounds.bottom - bounds.top};

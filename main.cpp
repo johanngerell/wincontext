@@ -85,11 +85,20 @@ constexpr SIZE client_size
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
-    const char* popup_class_name = register_window_class(WindowProc, "Window Context Test Class");
-    const DWORD popup_style = WS_POPUPWINDOW | WS_CAPTION;
-    const SIZE popup_size = window_size_for_client(client_size.cx, client_size.cy, popup_style);
-    const HWND popup = create_window(nullptr, popup_class_name, "Window Context Test", popup_style,
-                                     100, 100, popup_size.cx, popup_size.cy);
+    window_info popup_info;
+    popup_info.class_name = register_window_class(WindowProc, "Window Context Test Class");
+    popup_info.text       = "Window Context Test";
+    popup_info.style      = WS_POPUPWINDOW | WS_CAPTION;
+    popup_info.position   = {100, 100};
+    popup_info.size       = window_size_for_client(client_size, popup_info.style);
+    const HWND popup      = create_window(popup_info);
+
+    window_info label_info;
+    label_info.parent     = popup;
+    label_info.class_name = "STATIC";
+    label_info.style      = SS_BLACKFRAME | SS_NOTIFY;
+    label_info.size       = cell_size;
+    label_info.position   = {}; // gets set at each iteration below.
 
     cell_data cells[row_count * col_count * layer_count]{};
     for (int layer = 0; layer < layer_count; ++layer)
@@ -102,10 +111,14 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
                 cell_data& data = cells[offset + col];
                 data.row = row;
                 data.col = col;
-                const HWND cell = create_window(popup, "STATIC", "", SS_BLACKFRAME | SS_NOTIFY,
-                                                cell_spacing + cell_size.cy * row + cell_spacing * row + layer * 2,
-                                                cell_spacing + cell_size.cx * col + cell_spacing * col + layer * 2,
-                                                cell_size.cx, cell_size.cy);
+
+                label_info.position =
+                {
+                    cell_spacing + cell_size.cy * row + cell_spacing * row + layer * 2,
+                    cell_spacing + cell_size.cx * col + cell_spacing * col + layer * 2
+                };
+
+                const HWND cell = create_window(label_info);
                 data.hwnd = cell;
                 set_userdata(cell, &data);
             }
