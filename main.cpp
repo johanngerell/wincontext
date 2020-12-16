@@ -1,16 +1,32 @@
 #include <windows.h>
 #include <system_error>
+#include <unordered_map>
+#include <map>
+#include <chrono>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <stdexcept>
 
-struct win32_error
+class win32_error : std::runtime_error
 {
-    DWORD code{};
-    const char* function{};
+public:
+    explicit win32_error(DWORD code, const char* function)
+        : std::runtime_error(function)
+        , m_code{code}
+    {}
+
+    DWORD code() const { return m_code; }
+
+private:
+    DWORD m_code{};
 };
 
 struct cell_data
 {
     int row{};
     int col{};
+    int layer{};
     HWND hwnd{nullptr};
     bool visited{};
 };
@@ -21,15 +37,93 @@ struct sheet_data
     int cell_count{};
 };
 
-void set_userdata(HWND hwnd, void* userdata)
+#define METHOD1
+
+#if defined(METHOD22)
+    ATOM g_userdata_atom = GlobalAddAtomA("userdata");
+#endif
+
+#if defined(METHOD3)
+    std::unordered_map<HWND, void*> g_userdata;
+#endif
+
+#if defined(METHOD4)
+    std::map<HWND, void*> g_userdata;
+#endif
+
+#if defined(METHOD5)
+    struct userdata_item
+    {
+        HWND hwnd;
+        void* data;
+    };
+
+    bool operator<(const userdata_item& first, const userdata_item& second)
+    {
+        return first.hwnd < second.hwnd;
+    }
+
+    std::vector<userdata_item> g_userdata;
+#endif
+
+void set_userdata_impl(HWND hwnd, void* userdata)
 {
+#if defined(METHOD1)
     SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(userdata));
+#elif defined(METHOD2)
+    SetPropA(hwnd, "userdata", userdata);
+#elif defined(METHOD22)
+    SetPropA(hwnd, reinterpret_cast<const char*>(MAKELONG(g_userdata_atom, 0)), userdata);
+#elif defined(METHOD3)
+    g_userdata[hwnd] = userdata;
+#elif defined(METHOD4)
+    g_userdata[hwnd] = userdata;
+#elif defined(METHOD5)
+    userdata_item item{hwnd, userdata};
+    g_userdata.insert(std::upper_bound(g_userdata.begin(), g_userdata.end(), item), item);
+#endif
 }
 
 template <typename T>
-T& get_userdata(HWND hwnd)
+void set_userdata(HWND hwnd, T* userdata)
 {
-    return *reinterpret_cast<T*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
+    set_userdata_impl(hwnd, userdata);
+}
+
+void* get_userdata_impl(HWND hwnd)
+{
+#if defined(METHOD1)
+    return reinterpret_cast<void*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
+#elif defined(METHOD2)
+    return reinterpret_cast<void*>(GetPropA(hwnd, "userdata"));
+#elif defined(METHOD22)
+    return reinterpret_cast<void*>(GetPropA(hwnd, reinterpret_cast<const char*>(MAKELONG(g_userdata_atom, 0))));
+#elif defined(METHOD3)
+    auto it = g_userdata.find(hwnd);
+    if (it != g_userdata.end())
+        return it->second;
+    else
+        return nullptr;
+#elif defined(METHOD4)
+    auto it = g_userdata.find(hwnd);
+    if (it != g_userdata.end())
+        return it->second;
+    else
+        return nullptr;
+#elif defined(METHOD5)
+    userdata_item item{hwnd, nullptr};
+    auto it = std::lower_bound(g_userdata.begin(), g_userdata.end(), item);
+    if (it != g_userdata.end() && it->hwnd == hwnd)
+        return it->data;
+    else
+        return nullptr;
+#endif
+}
+
+template <typename T>
+T* get_userdata(HWND hwnd)
+{
+    return reinterpret_cast<T*>(get_userdata_impl(hwnd));
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -40,12 +134,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         {
             if (HIWORD(wp) == STN_CLICKED)
             {
-                sheet_data& sheet = get_userdata<sheet_data>(hwnd);
+                sheet_data& sheet = *get_userdata<sheet_data>(hwnd);
 
-                for (int i = 0; i < sheet.cell_count; ++i)
+                auto t1 = std::chrono::high_resolution_clock::now();
+
+                int i = 0;
+
+                for (; i < sheet.cell_count; ++i)
                 {
                     cell_data& cell = sheet.cells[i];
-                    cell_data& userdata_cell = get_userdata<cell_data>(cell.hwnd);
+                    cell_data& userdata_cell = *get_userdata<cell_data>(cell.hwnd);
 
                     if (&userdata_cell != &cell)
                         throw std::logic_error("userdata_cell != &cell");
@@ -56,8 +154,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                     cell.visited = true;
                 }
 
-                MessageBoxA(hwnd, "Done", "Looping", MB_OK);
+                if (i != sheet.cell_count)
+                    throw std::logic_error("i != sheet.cell_count");
+
+                auto t2 = std::chrono::high_resolution_clock::now();
+                auto duration_ns = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+
+                std::string msg = "Done: ";
+                msg += std::to_string(duration_ns.count());
+                msg += " us";
+
+                MessageBoxA(hwnd, msg.c_str(), "Done", MB_OK);
             }
+
+            return 0;
         }
         case WM_DESTROY:
         {
@@ -105,13 +215,14 @@ SIZE window_size_for_client(int width, int height, DWORD style)
 }
 
 constexpr int row_count{10};
-constexpr int column_count{10};
+constexpr int col_count{10};
+constexpr int layer_count{10};
 constexpr int cell_spacing{10};
 constexpr SIZE cell_size{20, 20};
 constexpr SIZE client_size
 {
-    column_count * (cell_size.cx + cell_spacing) + cell_spacing,
-    row_count    * (cell_size.cy + cell_spacing) + cell_spacing
+    col_count * (cell_size.cx + cell_spacing) + cell_spacing + layer_count * 2,
+    row_count * (cell_size.cy + cell_spacing) + cell_spacing + layer_count * 2
 };
 
 int WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
@@ -122,22 +233,28 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     const HWND popup = create_window(nullptr, popup_class_name, "Window Context Test", popup_style,
                                      100, 100, popup_size.cx, popup_size.cy);
 
-    cell_data cells[row_count * column_count]{};
-    for (int row = 0; row < row_count; ++row)
-        for (int col = 0; col < column_count; ++col)
+    cell_data cells[row_count * col_count * layer_count]{};
+    for (int layer = 0; layer < layer_count; ++layer)
+    {
+        for (int row = 0; row < row_count; ++row)
         {
-            cell_data& data = cells[row * column_count + col];
-            data.row = row;
-            data.col = col;
-            const HWND cell = create_window(popup, "STATIC", "", SS_BLACKRECT | SS_NOTIFY,
-                                            cell_spacing + cell_size.cy * row + cell_spacing * row,
-                                            cell_spacing + cell_size.cx * col + cell_spacing * col,
-                                            cell_size.cx, cell_size.cy);
-            data.hwnd = cell;
-            set_userdata(cell, &data);
+            int offset = layer * row_count * col_count + row * col_count;
+            for (int col = 0; col < col_count; ++col)
+            {
+                cell_data& data = cells[offset + col];
+                data.row = row;
+                data.col = col;
+                const HWND cell = create_window(popup, "STATIC", "", SS_BLACKFRAME | SS_NOTIFY,
+                                                cell_spacing + cell_size.cy * row + cell_spacing * row + layer * 2,
+                                                cell_spacing + cell_size.cx * col + cell_spacing * col + layer * 2,
+                                                cell_size.cx, cell_size.cy);
+                data.hwnd = cell;
+                set_userdata(cell, &data);
+            }
         }
+    }
 
-    sheet_data sheet{cells, row_count * column_count};
+    sheet_data sheet{cells, row_count * col_count * layer_count};
     set_userdata(popup, &sheet);
 
     MSG msg{};
