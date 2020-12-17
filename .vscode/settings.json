@@ -2,6 +2,7 @@
     "files.associations": {
         "system_error": "cpp",
         "stdexcept": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "chrono": "cpp"
     }
 }

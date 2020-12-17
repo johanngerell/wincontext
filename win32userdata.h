@@ -10,7 +10,13 @@ void set_userdata(HWND hwnd, T* userdata)
 }
 
 template <typename T>
-T* get_userdata(HWND hwnd)
+T& get_userdata(HWND hwnd)
+{
+    return *reinterpret_cast<T*>(get_userdata_impl(hwnd));
+}
+
+template <typename T>
+T* try_get_userdata(HWND hwnd)
 {
     return reinterpret_cast<T*>(get_userdata_impl(hwnd));
 }
