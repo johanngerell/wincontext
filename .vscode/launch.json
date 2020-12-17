@@ -5,10 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(Windows) Launch",
+            "name": "(Windows) Launch Debug",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "debug/wincontext.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false
+        },
+        {
+            "name": "(Windows) Launch Release",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "release/wincontext.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

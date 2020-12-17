@@ -14,16 +14,6 @@ struct grid_location
     int row{};
     int column{};
     int layer{};
-
-    bool operator==(const grid_location& other) const
-    {
-        return row == other.row && column == other.column && layer == other.layer;
-    }
-
-    bool operator!=(const grid_location& other) const
-    {
-        return !(*this == other);
-    }
 };
 
 grid_location grid_location_from_index(int index)
@@ -57,6 +47,25 @@ POINT position_from_grid_location(const grid_location& location)
     };
 }
 
+struct label_info
+{
+    HWND hwnd{};
+    int value{};
+};
+
+template <typename Func>
+std::chrono::microseconds::rep benchmark(int sample_count, Func&& func)
+{
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    for (int sample = 0; sample < sample_count; ++sample)
+        func();
+    
+    auto t2 = std::chrono::high_resolution_clock::now();                
+    
+    return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / sample_count;
+}
+
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg)
@@ -67,26 +76,27 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
             if (c == 'g')
             {
-                const auto& labels = get_userdata<std::vector<HWND>>(hwnd);
+                const auto& labels = get_userdata<std::vector<label_info>>(hwnd);
+                bool success = true;
 
-                auto t1 = std::chrono::high_resolution_clock::now();
-
-                for (int i = 0; i < static_cast<int>(labels.size()); ++i)
+                const auto average_us = benchmark(10, [&labels, &success]
                 {
-                    const auto location1 = grid_location_from_index(i);
-                    const auto location2 = get_userdata<grid_location>(labels[i]);
+                    for (const auto& label : labels)
+                    {
+                        auto& userdata_value = get_userdata<int>(label.hwnd);
 
-                    if (location1 != location2)
-                        throw std::logic_error("location mismatch");
-                }
-
-                auto t2 = std::chrono::high_resolution_clock::now();
-                auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1);
+                        if (userdata_value != label.value)
+                            success = false;
+        
+                        if (++userdata_value != label.value)
+                            success = false;
+                    }
+                });
 
                 std::string time_msg;
-                time_msg += "Time: ";
-                time_msg += std::to_string(duration_us.count());
-                time_msg += " us";
+                time_msg += "Average time: ";
+                time_msg += std::to_string(average_us);
+                time_msg += success ? " us (no errors)" : " us (with errors)";
 
                 SetWindowTextA(hwnd, time_msg.c_str());
             }
@@ -117,21 +127,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     label_create_info.parent     = popup;
     label_create_info.class_name = "STATIC";
     label_create_info.style      = SS_BLACKFRAME | SS_NOTIFY;
-    label_create_info.position   = {}; // gets set at each iteration below.
+    label_create_info.position   = {}; // set at each iteration below.
     label_create_info.size       = cell_size;
 
-    std::vector<HWND> labels;
+    std::vector<label_info> labels;
     labels.reserve(label_count);
-
-    std::vector<grid_location> locations;
-    locations.reserve(label_count);
 
     for (int i = 0; i < label_count; ++i)
     {
-        locations.push_back(grid_location_from_index(i));
-        label_create_info.position = position_from_grid_location(locations.back());
-        labels.push_back(create_window(label_create_info));
-        set_userdata(labels.back(), &locations.back());
+        const auto location = grid_location_from_index(i);
+        label_create_info.position = position_from_grid_location(location);
+        const HWND label = create_window(label_create_info);
+        labels.push_back({label, rand() % 4711});
+        set_userdata(label, &labels.back().value);
     }
 
     set_userdata(popup, &labels);
