@@ -30,3 +30,5 @@ struct window_info
 HWND create_window(const window_info& info);
 
 SIZE window_size_for_client(SIZE client_size, DWORD window_style);
+
+void simple_message_loop();

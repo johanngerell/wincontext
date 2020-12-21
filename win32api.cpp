@@ -34,3 +34,13 @@ SIZE window_size_for_client(SIZE client_size, DWORD window_style)
 
     return {bounds.right - bounds.left, bounds.bottom - bounds.top};
 }
+
+void simple_message_loop()
+{
+    MSG msg{};
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+}

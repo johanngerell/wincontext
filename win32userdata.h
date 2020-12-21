@@ -1,5 +1,7 @@
 #include <windows.h>
 
+const char* get_userdata_description();
+
 void set_userdata_impl(HWND hwnd, void* userdata);
 void* get_userdata_impl(HWND hwnd);
 
