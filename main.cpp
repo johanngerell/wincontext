@@ -24,7 +24,7 @@ grid_location grid_location_from_index(int index)
     {
         (index % (row_count * column_count)) / column_count,
         (index % (row_count * column_count)) % column_count,
-        index / (row_count * column_count)
+         index / (row_count * column_count)
     };
 }
 
@@ -56,24 +56,35 @@ std::chrono::microseconds::rep benchmark_average_us(int sample_count, Func&& fun
 
     for (int sample = 0; sample < sample_count; ++sample)
         func();
-    
+
     auto t2 = std::chrono::high_resolution_clock::now();                
     
     return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / sample_count;
 }
 
-using message_handler = std::function<LRESULT(WPARAM, LPARAM)>;
-using message_map = std::unordered_map<UINT, message_handler>;
+using message_handler_void = std::function<void(WPARAM, LPARAM)>;
+using message_handler_lresult = std::function<LRESULT(WPARAM, LPARAM)>;
+using message_map = std::unordered_map<UINT, message_handler_lresult>;
+
+void on_message(message_map& map, UINT msg, message_handler_void func, LRESULT result = 0)
+{
+    map[msg] = [func = std::move(func), result] (WPARAM wp, LPARAM lp)
+    {
+        func(wp, lp);
+        return result;
+    };
+}
+
+void on_message_ex(message_map& map, UINT msg, message_handler_lresult func)
+{
+    map[msg] = std::move(func);
+}
 
 LRESULT CALLBACK message_map_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     if (auto map = try_get_userdata<message_map>(hwnd))
-    {
-        auto it = map->find(msg);
-
-        if (it != map->end())
+        if (auto it = map->find(msg); it != map->end())
             return it->second(wp, lp);
-    }
 
     return DefWindowProc(hwnd, msg, wp, lp);
 }
@@ -83,7 +94,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     // Main window
     window_info popup_create_info;
     popup_create_info.class_name = register_window_class(message_map_window_proc, "Window Context Test Class");
-    popup_create_info.text       = "Window Context Test";
+    popup_create_info.text       = "Press 'g' to measure userdata access";
     popup_create_info.style      = WS_POPUPWINDOW | WS_CAPTION;
     popup_create_info.position   = {100, 100};
     popup_create_info.size       = window_size_for_client(client_size(), popup_create_info.style);
@@ -128,19 +139,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         SetWindowTextA(popup, text.c_str());
     };
 
-    popup_map[WM_CHAR] = [=] (WPARAM wp, LPARAM)
+    on_message(popup_map, WM_CHAR, [=] (WPARAM wp, LPARAM) 
     {
         if (static_cast<char>(wp) == 'g')
             benchmark_userdata_access();
+    });
 
-        return 0;
-    };
-
-    popup_map[WM_DESTROY] = [] (WPARAM, LPARAM)
+    on_message(popup_map, WM_DESTROY, [] (WPARAM, LPARAM)
     {
         PostQuitMessage(0);
-        return 0;
-    };
+    });
 
     simple_message_loop();
 
