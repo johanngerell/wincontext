@@ -31,7 +31,7 @@ grid_location grid_location_from_index(int index)
 constexpr int cell_spacing{10};
 constexpr SIZE cell_size{20, 20};
 
-SIZE client_size()
+SIZE client_size_for_grid()
 {
     return
     {
@@ -62,90 +62,132 @@ std::chrono::microseconds::rep benchmark_average_us(int sample_count, Func&& fun
     return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / sample_count;
 }
 
-using message_handler_void = std::function<void(WPARAM, LPARAM)>;
-using message_handler_lresult = std::function<LRESULT(WPARAM, LPARAM)>;
-using message_map = std::unordered_map<UINT, message_handler_lresult>;
+using message_map = std::unordered_map<UINT, std::function<LRESULT(HWND, WPARAM, LPARAM)>>;
 
-void on_message(message_map& map, UINT msg, message_handler_void func, LRESULT result = 0)
+class window
 {
-    map[msg] = [func = std::move(func), result] (WPARAM wp, LPARAM lp)
+public:
+    window() = default;
+
+    window(HWND parent, POINT position, SIZE size, DWORD style, const char* text, const char* class_name)
     {
-        func(wp, lp);
-        return result;
+        window_info label_create_info;
+        label_create_info.parent     = parent;
+        label_create_info.class_name = class_name;
+        label_create_info.text       = text;
+        label_create_info.style      = style;
+        label_create_info.size       = size;
+        label_create_info.position   = position;
+
+        m_hwnd = create_window(label_create_info);
+    }
+
+    HWND hwnd() const
+    {
+        return m_hwnd;
     };
+
+protected:
+    HWND m_hwnd;
+};
+
+std::string benchmark_userdata_access(const std::vector<window>& labels)
+{
+    const auto average_us = benchmark_average_us(100, [&labels]
+    {
+        for (const auto& label : labels)
+            get_userdata<int>(label.hwnd()) += 1;
+    });
+
+    std::string text("average time: ");
+    text += std::to_string(average_us);
+    text += " us (";
+    text += get_userdata_description();
+    text += ")";
+
+    return text;
 }
 
-void on_message_ex(message_map& map, UINT msg, message_handler_lresult func)
+void initialize_labels(HWND parent, std::vector<window>& labels, std::vector<int>& values)
 {
-    map[msg] = std::move(func);
-}
+    // Since we need the positions to be stable as userdata
+    labels.reserve(label_count);
+    values.reserve(label_count);
 
-LRESULT CALLBACK message_map_window_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
-{
-    if (auto map = try_get_userdata<message_map>(hwnd))
-        if (auto it = map->find(msg); it != map->end())
-            return it->second(wp, lp);
-
-    return DefWindowProc(hwnd, msg, wp, lp);
-}
-
-int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
-{
-    // Main window
-    window_info popup_create_info;
-    popup_create_info.class_name = register_window_class(message_map_window_proc, "Window Context Test Class");
-    popup_create_info.text       = "Press 'g' to measure userdata access";
-    popup_create_info.style      = WS_POPUPWINDOW | WS_CAPTION;
-    popup_create_info.position   = {100, 100};
-    popup_create_info.size       = window_size_for_client(client_size(), popup_create_info.style);
-    const HWND popup             = create_window(popup_create_info);
-
-    message_map popup_map;
-    set_userdata(popup, &popup_map);
-
-    // Child static controls, set position in each iteration below.
-    window_info label_create_info;
-    label_create_info.parent     = popup;
-    label_create_info.class_name = "STATIC";
-    label_create_info.style      = SS_BLACKFRAME;
-    label_create_info.size       = cell_size;
-
-    std::vector<HWND> labels(label_count);
-    std::vector<int> label_values(label_count);
-
+    // Layout all labels in a grid
     for (int i = 0; i < label_count; ++i)
     {
         const auto location = grid_location_from_index(i);
-        label_create_info.position = position_from_grid_location(location);
-        labels[i] = create_window(label_create_info);
-        label_values[i] = rand() % 4711;
-        set_userdata(labels[i], &label_values[i]);
+        const auto position = position_from_grid_location(location);
+        labels.push_back(window(parent, position, cell_size, SS_BLACKFRAME, "", "STATIC"));
+        values.push_back(rand() % 4711);
+        set_userdata(labels.back().hwnd(), &values.back());
+    }
+}
+
+class message_window : public window
+{
+public:
+    message_window(POINT position, SIZE client_size, DWORD style, const char* title, const char* class_name)
+    {
+        window_info info;
+        info.class_name = register_window_class(wndproc, class_name);
+        info.text       = title;
+        info.style      = style;
+        info.position   = position;
+        info.size       = window_size_for_client(client_size, style);
+
+        m_hwnd = create_window(info);
+        set_userdata(m_hwnd, this);
     }
 
-    auto benchmark_userdata_access = [&labels, popup]
+    void on(UINT msg, std::function<LRESULT(HWND, WPARAM, LPARAM)> func)
     {
-        const auto average_us = benchmark_average_us(100, [&labels]
+        m_message_map[msg] = std::move(func);
+    }
+
+    void on(UINT msg, LRESULT result, std::function<void(HWND, WPARAM, LPARAM)> func)
+    {
+        m_message_map[msg] = [func = std::move(func), result] (HWND hwnd_, WPARAM wp, LPARAM lp)
         {
-            for (const HWND label : labels)
-                get_userdata<int>(label) += 1;
-        });
+            func(hwnd_, wp, lp);
+            return result;
+        };
+    }
 
-        std::string text("average time: ");
-        text += std::to_string(average_us);
-        text += " us (";
-        text += get_userdata_description();
-        text += ")";
-
-        SetWindowTextA(popup, text.c_str());
-    };
-
-    on_message(popup_map, WM_CHAR, [=] (WPARAM wp, LPARAM) 
+private:
+    static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     {
-        if (static_cast<char>(wp) == 'g')
-            benchmark_userdata_access();
+        if (auto self = try_get_userdata<message_window>(hwnd))
+            if (auto it = self->m_message_map.find(msg); it != self->m_message_map.end())
+                return it->second(hwnd, wp, lp);
+
+        return DefWindowProc(hwnd, msg, wp, lp);
+    }
+
+    message_map m_message_map{};
+};
+
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+{
+    message_window popup({100, 100}, client_size_for_grid(), WS_POPUPWINDOW | WS_CAPTION,
+                         "Press 'g' to measure userdata access", "Window Context Test Class");
+
+    // Hold an int value as userdata for each label
+    std::vector<window> labels;
+    std::vector<int> label_values;
+    initialize_labels(popup.hwnd(), labels, label_values);
+
+    popup.on(WM_CHAR, 0, [&labels] (HWND hwnd, WPARAM wp, LPARAM) 
+    {
+        switch (static_cast<char>(wp))
+        {
+            case 'g': SetWindowTextA(hwnd, benchmark_userdata_access(labels).c_str()); break;
+            case 'q': DestroyWindow(hwnd); break;
+        }
     });
 
-    on_message(popup_map, WM_DESTROY, [] (WPARAM, LPARAM)
+    popup.on(WM_DESTROY, 0, [] (HWND, WPARAM, LPARAM)
     {
         PostQuitMessage(0);
     });

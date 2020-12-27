@@ -11,6 +11,11 @@ void set_userdata(HWND hwnd, T* userdata)
     set_userdata_impl(hwnd, userdata);
 }
 
+inline void clear_userdata(HWND hwnd)
+{
+    set_userdata_impl(hwnd, nullptr);
+}
+
 template <typename T>
 T& get_userdata(HWND hwnd)
 {
