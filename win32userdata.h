@@ -1,3 +1,5 @@
+#pragma once
+
 #include <windows.h>
 
 const char* get_userdata_description();

@@ -3,49 +3,56 @@
 #include <vector>
 #include <unordered_map>
 #include <functional>
+#include <algorithm>
+#include <iterator>
 #include "win32userdata.h"
 #include "win32api.h"
 
-constexpr int row_count{10};
-constexpr int column_count{10};
-constexpr int layer_count{10};
-constexpr int label_count{row_count * column_count * layer_count};
+struct grid_dimensions
+{
+    int row_count{};
+    int column_count{};
+    int layer_count{};
+};
 
 struct grid_location
 {
-    int row{};
-    int column{};
-    int layer{};
+    int row_index{};
+    int column_index{};
+    int layer_index{};
 };
 
-grid_location grid_location_from_index(int index)
+grid_location grid_location_from_index(const grid_dimensions& grid, int index)
 {
     return
     {
-        (index % (row_count * column_count)) / column_count,
-        (index % (row_count * column_count)) % column_count,
-         index / (row_count * column_count)
+        (index % (grid.row_count * grid.column_count)) / grid.column_count,
+        (index % (grid.row_count * grid.column_count)) % grid.column_count,
+         index / (grid.row_count * grid.column_count)
     };
 }
 
-constexpr int cell_spacing{10};
-constexpr SIZE cell_size{20, 20};
+struct grid_cell_layout
+{
+    int spacing{};
+    SIZE size{};
+};
 
-SIZE client_size_for_grid()
+SIZE client_size_for_grid(const grid_dimensions& grid, const grid_cell_layout& layout)
 {
     return
     {
-        column_count * (cell_size.cx + cell_spacing) + cell_spacing + layer_count * 2,
-        row_count * (cell_size.cy + cell_spacing) + cell_spacing + layer_count * 2
+        grid.column_count * (layout.size.cx + layout.spacing) + layout.spacing + grid.layer_count * 2,
+        grid.row_count    * (layout.size.cy + layout.spacing) + layout.spacing + grid.layer_count * 2
     };
 };
 
-POINT position_from_grid_location(const grid_location& location)
+POINT position_from_grid_location(const grid_location& location, const grid_cell_layout& layout)
 {
     return
     {
-        cell_spacing + cell_size.cy * location.row + cell_spacing * location.row + location.layer * 2,
-        cell_spacing + cell_size.cx * location.column + cell_spacing * location.column + location.layer * 2
+        layout.spacing + layout.size.cy * location.row_index    + layout.spacing * location.row_index    + location.layer_index * 2,
+        layout.spacing + layout.size.cx * location.column_index + layout.spacing * location.column_index + location.layer_index * 2
     };
 }
 
@@ -62,41 +69,12 @@ std::chrono::microseconds::rep benchmark_average_us(int sample_count, Func&& fun
     return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / sample_count;
 }
 
-using message_map = std::unordered_map<UINT, std::function<LRESULT(HWND, WPARAM, LPARAM)>>;
-
-class window
-{
-public:
-    window() = default;
-
-    window(HWND parent, POINT position, SIZE size, DWORD style, const char* text, const char* class_name)
-    {
-        window_info label_create_info;
-        label_create_info.parent     = parent;
-        label_create_info.class_name = class_name;
-        label_create_info.text       = text;
-        label_create_info.style      = style;
-        label_create_info.size       = size;
-        label_create_info.position   = position;
-
-        m_hwnd = create_window(label_create_info);
-    }
-
-    HWND hwnd() const
-    {
-        return m_hwnd;
-    };
-
-protected:
-    HWND m_hwnd;
-};
-
-std::string benchmark_userdata_access(const std::vector<window>& labels)
+std::string benchmark_userdata_access(const std::vector<HWND>& labels)
 {
     const auto average_us = benchmark_average_us(100, [&labels]
     {
-        for (const auto& label : labels)
-            get_userdata<int>(label.hwnd()) += 1;
+        for (const HWND label : labels)
+            get_userdata<int>(label) += 1;
     });
 
     std::string text("average time: ");
@@ -108,91 +86,87 @@ std::string benchmark_userdata_access(const std::vector<window>& labels)
     return text;
 }
 
-void initialize_labels(HWND parent, std::vector<window>& labels, std::vector<int>& values)
-{
-    // Since we need the positions to be stable as userdata
-    labels.reserve(label_count);
-    values.reserve(label_count);
+using message_map = std::unordered_map<UINT, std::function<LRESULT(HWND, WPARAM, LPARAM)>>;
 
-    // Layout all labels in a grid
-    for (int i = 0; i < label_count; ++i)
-    {
-        const auto location = grid_location_from_index(i);
-        const auto position = position_from_grid_location(location);
-        labels.push_back(window(parent, position, cell_size, SS_BLACKFRAME, "", "STATIC"));
-        values.push_back(rand() % 4711);
-        set_userdata(labels.back().hwnd(), &values.back());
-    }
+LRESULT CALLBACK message_map_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    if (auto handlers = try_get_userdata<message_map>(hwnd))
+        if (auto it = handlers->find(msg); it != handlers->end())
+            return it->second(hwnd, wp, lp);
+
+    return DefWindowProc(hwnd, msg, wp, lp);
 }
 
-class message_window : public window
+HWND create_main_window(const grid_cell_layout& cell_layout, const grid_dimensions& grid)
 {
-public:
-    message_window(POINT position, SIZE client_size, DWORD style, const char* title, const char* class_name)
-    {
-        window_info info;
-        info.class_name = register_window_class(wndproc, class_name);
-        info.text       = title;
-        info.style      = style;
-        info.position   = position;
-        info.size       = window_size_for_client(client_size, style);
+    window_creation_info creation_info;
+    creation_info.class_name = register_window_class(message_map_wndproc, "Main Window Class");
+    creation_info.text       = "Press 'g' to measure userdata access";
+    creation_info.style      = WS_POPUPWINDOW | WS_CAPTION;
+    creation_info.size       = window_size_for_client(client_size_for_grid(grid, cell_layout), creation_info.style);
+    creation_info.position   = {100, 100};
 
-        m_hwnd = create_window(info);
-        set_userdata(m_hwnd, this);
-    }
+    return create_window(creation_info);
+}
 
-    void on(UINT msg, std::function<LRESULT(HWND, WPARAM, LPARAM)> func)
-    {
-        m_message_map[msg] = std::move(func);
-    }
-
-    void on(UINT msg, LRESULT result, std::function<void(HWND, WPARAM, LPARAM)> func)
-    {
-        m_message_map[msg] = [func = std::move(func), result] (HWND hwnd_, WPARAM wp, LPARAM lp)
-        {
-            func(hwnd_, wp, lp);
-            return result;
-        };
-    }
-
-private:
-    static LRESULT CALLBACK wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
-    {
-        if (auto self = try_get_userdata<message_window>(hwnd))
-            if (auto it = self->m_message_map.find(msg); it != self->m_message_map.end())
-                return it->second(hwnd, wp, lp);
-
-        return DefWindowProc(hwnd, msg, wp, lp);
-    }
-
-    message_map m_message_map{};
-};
-
-int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+std::vector<HWND> create_labels(HWND parent, const grid_cell_layout& cell_layout, const grid_dimensions& grid)
 {
-    message_window popup({100, 100}, client_size_for_grid(), WS_POPUPWINDOW | WS_CAPTION,
-                         "Press 'g' to measure userdata access", "Window Context Test Class");
+    window_creation_info creation_info;
+    creation_info.parent     = parent;
+    creation_info.class_name = "STATIC";
+    creation_info.style      = SS_BLACKFRAME;
+    creation_info.size       = cell_layout.size;
 
-    // Hold an int value as userdata for each label
-    std::vector<window> labels;
-    std::vector<int> label_values;
-    initialize_labels(popup.hwnd(), labels, label_values);
+    // Layout all labels in a grid
+    std::vector<HWND> labels(grid.row_count * grid.column_count * grid.layer_count);
+    for (int i = 0; i < labels.size(); ++i)
+    {
+        const auto location = grid_location_from_index(grid, i);
+        creation_info.position = position_from_grid_location(location, cell_layout);
+        labels[i] = create_window(creation_info);
+    }
 
-    popup.on(WM_CHAR, 0, [&labels] (HWND hwnd, WPARAM wp, LPARAM) 
+    return labels;
+}
+
+void handle_messages(message_map& map, const std::vector<HWND>& labels)
+{
+    map[WM_CHAR] = [&labels] (HWND hwnd, WPARAM wp, LPARAM) 
     {
         switch (static_cast<char>(wp))
         {
             case 'g': SetWindowTextA(hwnd, benchmark_userdata_access(labels).c_str()); break;
             case 'q': DestroyWindow(hwnd); break;
         }
-    });
+        return 0;
+    };
 
-    popup.on(WM_DESTROY, 0, [] (HWND, WPARAM, LPARAM)
+    map[WM_DESTROY] = [] (HWND, WPARAM, LPARAM)
     {
         PostQuitMessage(0);
-    });
+        return 0;
+    };
+}
 
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+{
+    constexpr grid_dimensions grid{10, 10, 10};
+    constexpr grid_cell_layout cell_layout{10, {20, 20}};
+
+    const HWND main_window = create_main_window(cell_layout, grid);
+    message_map main_message_map;
+    set_userdata(main_window, &main_message_map);
+
+    const std::vector<HWND> labels = create_labels(main_window, cell_layout, grid);
+    std::vector<int> labels_userdata(labels.size());
+    for (int i = 0; i < labels.size(); ++i)
+    {
+        labels_userdata[i] = rand() % 4711;
+        set_userdata(labels[i], &labels_userdata[i]);
+    }
+
+    handle_messages(main_message_map, labels);
     simple_message_loop();
 
-    return 1;
+    return 0;
 }
