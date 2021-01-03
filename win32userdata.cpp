@@ -1,37 +1,147 @@
 #include "win32userdata.h"
-#include <array> // impl_0
 #include <unordered_map> // impl_4
 #include <map> // impl_5
-#include <vector> // impl_6
+#include <vector> // impl_0, impl_6
 #include <algorithm> // impl_6
 
-struct impl_0
+struct userdata_0 final : public userdata
 {
-    std::array<void*, 1000> userdata;
-} g_impl_0;
+    std::vector<void*> data;
+    int size;
+    int index;
 
-struct impl_1
-{} g_impl_1;
+    userdata_0(int size_hint)
+        : size{size_hint}
+        , data{size_hint}
+        , index{0}
+    {}
 
-struct impl_2
-{} g_impl_2;
+    virtual const char* description() override
+    {
+        return "Baseline indexed array userdata";
+    }
 
-struct impl_3
+    virtual void set_impl(HWND, void* data_) override
+    {
+        data[index] = data_;
+        if (++index >= size)
+            index = 0;
+    }
+
+    virtual void* get_impl(HWND) override
+    {
+        void* d = data[index];
+        if (++index >= size)
+            index = 0;
+        return d;
+    }
+};
+
+struct userdata_1 final : public userdata
+{
+    virtual const char* description() override
+    {
+        return "Win32 window userdata";
+    }
+
+    virtual void set_impl(HWND hwnd, void* data) override
+    {
+        SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(data));
+    }
+
+    virtual void* get_impl(HWND hwnd) override
+    {
+        return reinterpret_cast<void*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
+    }
+};
+
+struct userdata_2 final : public userdata
+{
+    virtual const char* description() override
+    {
+        return "Win32 window property, string id";
+    }
+
+    virtual void set_impl(HWND hwnd, void* data) override
+    {
+        SetPropA(hwnd, "userdata", data);
+    }
+
+    virtual void* get_impl(HWND hwnd) override
+    {
+        return reinterpret_cast<void*>(GetPropA(hwnd, "userdata"));
+    }
+};
+
+struct userdata_3 final : public userdata
 {
     ATOM userdata_atom = GlobalAddAtomA("userdata");
-}  g_impl_3;
 
-struct impl_4
+    virtual const char* description() override
+    {
+        return "Win32 window property, atom id";
+    }
+
+    virtual void set_impl(HWND hwnd, void* data) override
+    {
+        SetPropA(hwnd, reinterpret_cast<const char*>(static_cast<long long>(MAKELONG(userdata_atom, 0))), data);
+    }
+
+    virtual void* get_impl(HWND hwnd) override
+    {
+        return reinterpret_cast<void*>(GetPropA(hwnd, reinterpret_cast<const char*>(static_cast<long long>(MAKELONG(userdata_atom, 0)))));
+    }
+};
+
+struct userdata_4 final : public userdata
 {
-    std::unordered_map<HWND, void*> userdata;
-} g_impl_4;
+    std::unordered_map<HWND, void*> data;
 
-struct impl_5
+    virtual const char* description() override
+    {
+        return "std::unordered_map";
+    }
+
+    virtual void set_impl(HWND hwnd, void* data_) override
+    {
+        data[hwnd] = data_;
+    }
+
+    virtual void* get_impl(HWND hwnd) override
+    {
+        auto it = data.find(hwnd);
+        if (it != data.end())
+            return it->second;
+        else
+            return nullptr;
+    }
+};
+
+struct userdata_5 final : public userdata
 {
-    std::map<HWND, void*> userdata;
-} g_impl_5;
+    std::map<HWND, void*> data;
 
-struct impl_6
+    virtual const char* description() override
+    {
+        return "std::map";
+    }
+
+    virtual void set_impl(HWND hwnd, void* data_) override
+    {
+        data[hwnd] = data_;
+    }
+
+    virtual void* get_impl(HWND hwnd) override
+    {
+        auto it = data.find(hwnd);
+        if (it != data.end())
+            return it->second;
+        else
+            return nullptr;
+    }
+};
+
+struct userdata_6 final : public userdata
 {
     struct userdata_item
     {
@@ -44,10 +154,31 @@ struct impl_6
         }
     };
 
-    std::vector<userdata_item> userdata;
-} g_impl_6;
+    std::vector<userdata_item> data;
 
-struct impl_7
+    virtual const char* description() override
+    {
+        return "std::vector, sorted";
+    }
+
+    virtual void set_impl(HWND hwnd, void* data_) override
+    {
+        userdata_item item{hwnd, data_};
+        data.insert(std::upper_bound(data.begin(), data.end(), item), item);
+    }
+
+    virtual void* get_impl(HWND hwnd) override
+    {
+        userdata_item item{hwnd, nullptr};
+        auto it = std::lower_bound(data.begin(), data.end(), item);
+        if (it != data.end() && it->hwnd == hwnd)
+            return it->data;
+        else
+            return nullptr;
+    }
+};
+
+struct userdata_7 final : public userdata
 {
     struct userdata_item
     {
@@ -60,96 +191,46 @@ struct impl_7
         }
     };
 
-    std::vector<userdata_item> userdata;
-} g_impl_7;
+    std::vector<userdata_item> data;
 
-const char* get_userdata_description(int impl_index)
-{
-    switch (impl_index)
+    virtual const char* description() override
     {
-        case 0: return "Baseline indexed array userdata";
-        case 1: return "Win32 window userdata";
-        case 2: return "Win32 window property, string id";
-        case 3: return "Win32 window property, atom id";
-        case 4: return "std::unordered_map";
-        case 5: return "std::map";
-        case 6: return "std::vector, sorted";
-        case 7: return "std::vector, unsorted";
-        default: return "UNKNOWN";
+        return "std::vector, unsorted";
     }
-}
 
-void set_userdata_impl(int impl_index, int hwnd_index, HWND hwnd, void* userdata)
-{
-    switch (impl_index)
+    virtual void set_impl(HWND hwnd, void* data_) override
     {
-        case 0: g_impl_0.userdata[hwnd_index] = userdata; break;
-        case 1: SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(userdata)); break;
-        case 2: SetPropA(hwnd, "userdata", userdata); break;
-        case 3: SetPropA(hwnd, reinterpret_cast<const char*>(static_cast<long long>(MAKELONG(g_impl_3.userdata_atom, 0))), userdata); break;
-        case 4: g_impl_4.userdata[hwnd] = userdata; break;
-        case 5: g_impl_5.userdata[hwnd] = userdata; break;
-        case 6:
-        {
-            impl_6::userdata_item item{hwnd, userdata};
-            g_impl_6.userdata.insert(std::upper_bound(g_impl_6.userdata.begin(), g_impl_6.userdata.end(), item), item);
-            break;
-        }
-        case 7:
-        {
-            impl_7::userdata_item item{hwnd, userdata};
-            auto it = std::find(g_impl_7.userdata.begin(), g_impl_7.userdata.end(), item);
-            if (it != g_impl_7.userdata.end())
-                it->data = userdata;
-            else
-                g_impl_7.userdata.push_back(item);
-             break;
-        }
+        userdata_item item{hwnd, data_};
+        auto it = std::find(data.begin(), data.end(), item);
+        if (it != data.end())
+            it->data = data_;
+        else
+            data.push_back(item);
     }
-}
 
-void* get_userdata_impl(int impl_index, int hwnd_index, HWND hwnd)
+    virtual void* get_impl(HWND hwnd) override
+    {
+        userdata_item item{hwnd, nullptr};
+        auto it = std::find(data.begin(), data.end(), item);
+        if (it != data.end())
+            return it->data;
+        else
+            return nullptr;
+    }
+};
+
+std::unique_ptr<userdata> make_userdata(int impl_index, int size_hint)
 {
     switch (impl_index)
     {
-        case 0: return g_impl_0.userdata[hwnd_index];
-        case 1: return reinterpret_cast<void*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
-        case 2: return reinterpret_cast<void*>(GetPropA(hwnd, "userdata"));
-        case 3: return reinterpret_cast<void*>(GetPropA(hwnd, reinterpret_cast<const char*>(static_cast<long long>(MAKELONG(g_impl_3.userdata_atom, 0)))));
-        case 4:
-        {
-            auto it = g_impl_4.userdata.find(hwnd);
-            if (it != g_impl_4.userdata.end())
-                return it->second;
-            else
-                return nullptr;
-        }
-        case 5:
-        {
-            auto it = g_impl_5.userdata.find(hwnd);
-            if (it != g_impl_5.userdata.end())
-                return it->second;
-            else
-                return nullptr;
-        }
-        case 6:
-        {
-            impl_6::userdata_item item{hwnd, nullptr};
-            auto it = std::lower_bound(g_impl_6.userdata.begin(), g_impl_6.userdata.end(), item);
-            if (it != g_impl_6.userdata.end() && it->hwnd == hwnd)
-                return it->data;
-            else
-                return nullptr;
-        }
-        case 7:
-        {
-            impl_7::userdata_item item{hwnd, nullptr};
-            auto it = std::find(g_impl_7.userdata.begin(), g_impl_7.userdata.end(), item);
-            if (it != g_impl_7.userdata.end())
-                return it->data;
-            else
-                return nullptr;
-        }
+        case 0: return std::make_unique<userdata_0>(size_hint);
+        case 1: return std::make_unique<userdata_1>();
+        case 2: return std::make_unique<userdata_2>();
+        case 3: return std::make_unique<userdata_3>();
+        case 4: return std::make_unique<userdata_4>();
+        case 5: return std::make_unique<userdata_5>();
+        case 6: return std::make_unique<userdata_6>();
+        case 7: return std::make_unique<userdata_7>();    
         default: return nullptr;
     }
 }

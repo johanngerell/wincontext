@@ -1,26 +1,36 @@
 #pragma once
 
 #include <windows.h>
+#include <memory>
 
-const char* get_userdata_description(int impl_index);
-
-void set_userdata_impl(int impl_index, int hwnd_index, HWND hwnd, void* userdata);
-void* get_userdata_impl(int impl_index, int hwnd_index, HWND hwnd);
-
-template <typename T>
-void set_userdata(int impl_index, int hwnd_index, HWND hwnd, T* userdata)
+class userdata
 {
-    set_userdata_impl(impl_index, hwnd_index, hwnd, userdata);
-}
+public:
+    template <typename T>
+    void set(HWND hwnd, T* data)
+    {
+        set_impl(hwnd, data);
+    }
 
-template <typename T>
-T& get_userdata(int impl_index, int hwnd_index, HWND hwnd)
-{
-    return *reinterpret_cast<T*>(get_userdata_impl(impl_index, hwnd_index, hwnd));
-}
+    template <typename T>
+    T& get(HWND hwnd)
+    {
+        return *reinterpret_cast<T*>(get_impl(hwnd));
+    }
 
-template <typename T>
-T* try_get_userdata(int impl_index, int hwnd_index, HWND hwnd)
-{
-    return reinterpret_cast<T*>(get_userdata_impl(impl_index, hwnd_index, hwnd));
-}
+    template <typename T>
+    T* try_get(HWND hwnd)
+    {
+        return reinterpret_cast<T*>(get_impl(hwnd));
+    }
+
+    virtual const char* description() = 0;
+
+//protected:
+    virtual void set_impl(HWND hwnd, void* data) = 0;
+    virtual void* get_impl(HWND hwnd) = 0;
+
+    virtual ~userdata() = default;
+};
+
+std::unique_ptr<userdata> make_userdata(int impl_index, int size_hint);
