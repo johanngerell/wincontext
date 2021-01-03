@@ -1,133 +1,155 @@
 #include "win32userdata.h"
+#include <array> // impl_0
+#include <unordered_map> // impl_4
+#include <map> // impl_5
+#include <vector> // impl_6
+#include <algorithm> // impl_6
 
-#define METHOD1
+struct impl_0
+{
+    std::array<void*, 1000> userdata;
+} g_impl_0;
 
-#if defined(METHOD22)
-    ATOM g_userdata_atom = GlobalAddAtomA("userdata");
-#endif
+struct impl_1
+{} g_impl_1;
 
-#if defined(METHOD3)
-    #include <unordered_map>
-    std::unordered_map<HWND, void*> g_userdata;
-#endif
+struct impl_2
+{} g_impl_2;
 
-#if defined(METHOD4)
-    #include <map>
-    std::map<HWND, void*> g_userdata;
-#endif
+struct impl_3
+{
+    ATOM userdata_atom = GlobalAddAtomA("userdata");
+}  g_impl_3;
 
-#if defined(METHOD5)
-    #include <vector>
-    #include <algorithm>
+struct impl_4
+{
+    std::unordered_map<HWND, void*> userdata;
+} g_impl_4;
 
+struct impl_5
+{
+    std::map<HWND, void*> userdata;
+} g_impl_5;
+
+struct impl_6
+{
     struct userdata_item
     {
         HWND hwnd;
         void* data;
+
+        bool operator<(const userdata_item& other) const
+        {
+            return hwnd < other.hwnd;
+        }
     };
 
-    bool operator<(const userdata_item& first, const userdata_item& second)
-    {
-        return first.hwnd < second.hwnd;
-    }
+    std::vector<userdata_item> userdata;
+} g_impl_6;
 
-    std::vector<userdata_item> g_userdata;
-#endif
-
-#if defined(METHOD6)
-    #include <vector>
-
+struct impl_7
+{
     struct userdata_item
     {
         HWND hwnd;
         void* data;
+
+        bool operator==(const userdata_item& other) const
+        {
+            return hwnd == other.hwnd;
+        }
     };
 
-    bool operator==(const userdata_item& first, const userdata_item& second)
+    std::vector<userdata_item> userdata;
+} g_impl_7;
+
+const char* get_userdata_description(int impl_index)
+{
+    switch (impl_index)
     {
-        return first.hwnd == second.hwnd;
+        case 0: return "Baseline indexed array userdata";
+        case 1: return "Win32 window userdata";
+        case 2: return "Win32 window property, string id";
+        case 3: return "Win32 window property, atom id";
+        case 4: return "std::unordered_map";
+        case 5: return "std::map";
+        case 6: return "std::vector, sorted";
+        case 7: return "std::vector, unsorted";
+        default: return "UNKNOWN";
     }
-
-    std::vector<userdata_item> g_userdata;
-#endif
-
-const char* get_userdata_description()
-{
-#if defined(METHOD1)
-    return "Win32 window userdata";
-#elif defined(METHOD2)
-    return "Win32 window property, string id";
-#elif defined(METHOD22)
-    return "Win32 window property, atom id";
-#elif defined(METHOD3)
-    return "std::unordered_map";
-#elif defined(METHOD4)
-    return "std::map";
-#elif defined(METHOD5)
-    return "std::vector, sorted";
-#elif defined(METHOD6)
-    return "std::vector, unsorted";
-#endif
 }
 
-void set_userdata_impl(HWND hwnd, void* userdata)
+void set_userdata_impl(int impl_index, int hwnd_index, HWND hwnd, void* userdata)
 {
-#if defined(METHOD1)
-    SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(userdata));
-#elif defined(METHOD2)
-    SetPropA(hwnd, "userdata", userdata);
-#elif defined(METHOD22)
-    SetPropA(hwnd, reinterpret_cast<const char*>(MAKELONG(g_userdata_atom, 0)), userdata);
-#elif defined(METHOD3)
-    g_userdata[hwnd] = userdata;
-#elif defined(METHOD4)
-    g_userdata[hwnd] = userdata;
-#elif defined(METHOD5)
-    userdata_item item{hwnd, userdata};
-    g_userdata.insert(std::upper_bound(g_userdata.begin(), g_userdata.end(), item), item);
-#elif defined(METHOD6)
-    userdata_item item{hwnd, userdata};
-    auto it = std::find(g_userdata.begin(), g_userdata.end(), item);
-    if (it != g_userdata.end())
-        it->data = userdata;
-    else
-        g_userdata.push_back(item);
-#endif
+    switch (impl_index)
+    {
+        case 0: g_impl_0.userdata[hwnd_index] = userdata; break;
+        case 1: SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(userdata)); break;
+        case 2: SetPropA(hwnd, "userdata", userdata); break;
+        case 3: SetPropA(hwnd, reinterpret_cast<const char*>(static_cast<long long>(MAKELONG(g_impl_3.userdata_atom, 0))), userdata); break;
+        case 4: g_impl_4.userdata[hwnd] = userdata; break;
+        case 5: g_impl_5.userdata[hwnd] = userdata; break;
+        case 6:
+        {
+            impl_6::userdata_item item{hwnd, userdata};
+            g_impl_6.userdata.insert(std::upper_bound(g_impl_6.userdata.begin(), g_impl_6.userdata.end(), item), item);
+            break;
+        }
+        case 7:
+        {
+            impl_7::userdata_item item{hwnd, userdata};
+            auto it = std::find(g_impl_7.userdata.begin(), g_impl_7.userdata.end(), item);
+            if (it != g_impl_7.userdata.end())
+                it->data = userdata;
+            else
+                g_impl_7.userdata.push_back(item);
+             break;
+        }
+    }
 }
 
-void* get_userdata_impl(HWND hwnd)
+void* get_userdata_impl(int impl_index, int hwnd_index, HWND hwnd)
 {
-#if defined(METHOD1)
-    return reinterpret_cast<void*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
-#elif defined(METHOD2)
-    return reinterpret_cast<void*>(GetPropA(hwnd, "userdata"));
-#elif defined(METHOD22)
-    return reinterpret_cast<void*>(GetPropA(hwnd, reinterpret_cast<const char*>(MAKELONG(g_userdata_atom, 0))));
-#elif defined(METHOD3)
-    auto it = g_userdata.find(hwnd);
-    if (it != g_userdata.end())
-        return it->second;
-    else
-        return nullptr;
-#elif defined(METHOD4)
-    auto it = g_userdata.find(hwnd);
-    if (it != g_userdata.end())
-        return it->second;
-    else
-        return nullptr;
-#elif defined(METHOD5)
-    userdata_item item{hwnd, nullptr};
-    auto it = std::lower_bound(g_userdata.begin(), g_userdata.end(), item);
-    if (it != g_userdata.end() && it->hwnd == hwnd)
-        return it->data;
-    else
-        return nullptr;
-#elif defined(METHOD6)
-    userdata_item item{hwnd, nullptr};
-    auto it = std::find(g_userdata.begin(), g_userdata.end(), item);
-    if (it != g_userdata.end())
-        return it->data;
-    else
-        return nullptr;
-#endif
+    switch (impl_index)
+    {
+        case 0: return g_impl_0.userdata[hwnd_index];
+        case 1: return reinterpret_cast<void*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
+        case 2: return reinterpret_cast<void*>(GetPropA(hwnd, "userdata"));
+        case 3: return reinterpret_cast<void*>(GetPropA(hwnd, reinterpret_cast<const char*>(static_cast<long long>(MAKELONG(g_impl_3.userdata_atom, 0)))));
+        case 4:
+        {
+            auto it = g_impl_4.userdata.find(hwnd);
+            if (it != g_impl_4.userdata.end())
+                return it->second;
+            else
+                return nullptr;
+        }
+        case 5:
+        {
+            auto it = g_impl_5.userdata.find(hwnd);
+            if (it != g_impl_5.userdata.end())
+                return it->second;
+            else
+                return nullptr;
+        }
+        case 6:
+        {
+            impl_6::userdata_item item{hwnd, nullptr};
+            auto it = std::lower_bound(g_impl_6.userdata.begin(), g_impl_6.userdata.end(), item);
+            if (it != g_impl_6.userdata.end() && it->hwnd == hwnd)
+                return it->data;
+            else
+                return nullptr;
+        }
+        case 7:
+        {
+            impl_7::userdata_item item{hwnd, nullptr};
+            auto it = std::find(g_impl_7.userdata.begin(), g_impl_7.userdata.end(), item);
+            if (it != g_impl_7.userdata.end())
+                return it->data;
+            else
+                return nullptr;
+        }
+        default: return nullptr;
+    }
 }

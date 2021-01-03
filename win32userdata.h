@@ -2,30 +2,25 @@
 
 #include <windows.h>
 
-const char* get_userdata_description();
+const char* get_userdata_description(int impl_index);
 
-void set_userdata_impl(HWND hwnd, void* userdata);
-void* get_userdata_impl(HWND hwnd);
+void set_userdata_impl(int impl_index, int hwnd_index, HWND hwnd, void* userdata);
+void* get_userdata_impl(int impl_index, int hwnd_index, HWND hwnd);
 
 template <typename T>
-void set_userdata(HWND hwnd, T* userdata)
+void set_userdata(int impl_index, int hwnd_index, HWND hwnd, T* userdata)
 {
-    set_userdata_impl(hwnd, userdata);
-}
-
-inline void clear_userdata(HWND hwnd)
-{
-    set_userdata_impl(hwnd, nullptr);
+    set_userdata_impl(impl_index, hwnd_index, hwnd, userdata);
 }
 
 template <typename T>
-T& get_userdata(HWND hwnd)
+T& get_userdata(int impl_index, int hwnd_index, HWND hwnd)
 {
-    return *reinterpret_cast<T*>(get_userdata_impl(hwnd));
+    return *reinterpret_cast<T*>(get_userdata_impl(impl_index, hwnd_index, hwnd));
 }
 
 template <typename T>
-T* try_get_userdata(HWND hwnd)
+T* try_get_userdata(int impl_index, int hwnd_index, HWND hwnd)
 {
-    return reinterpret_cast<T*>(get_userdata_impl(hwnd));
+    return reinterpret_cast<T*>(get_userdata_impl(impl_index, hwnd_index, hwnd));
 }

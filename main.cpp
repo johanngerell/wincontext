@@ -69,18 +69,25 @@ std::chrono::microseconds::rep benchmark_average_us(int sample_count, Func&& fun
     return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / sample_count;
 }
 
-std::string benchmark_userdata_access(const std::vector<HWND>& labels)
+std::string benchmark_userdata_access(int impl_index, const std::vector<HWND>& labels)
 {
-    const auto average_us = benchmark_average_us(100, [&labels]
+    const auto average_us = benchmark_average_us(100, [&labels, impl_index]
     {
-        for (const HWND label : labels)
-            get_userdata<int>(label) += 1;
+        if (impl_index == 0)
+        {
+            int i = 0;
+            for (const HWND label : labels)
+                get_userdata<int>(impl_index, i++, label) += 1;
+        }
+        else
+            for (const HWND label : labels)
+                get_userdata<int>(impl_index, 0, label) += 1;
     });
 
     std::string text("average time: ");
     text += std::to_string(average_us);
     text += " us (";
-    text += get_userdata_description();
+    text += get_userdata_description(impl_index);
     text += ")";
 
     return text;
@@ -90,7 +97,7 @@ using message_map = std::unordered_map<UINT, std::function<LRESULT(HWND, WPARAM,
 
 LRESULT CALLBACK message_map_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
-    if (auto handlers = try_get_userdata<message_map>(hwnd))
+    if (auto handlers = try_get_userdata<message_map>(1, 0, hwnd))
         if (auto it = handlers->find(msg); it != handlers->end())
             return it->second(hwnd, wp, lp);
 
@@ -129,13 +136,13 @@ std::vector<HWND> create_labels(HWND parent, const grid_cell_layout& cell_layout
     return labels;
 }
 
-void handle_messages(message_map& map, const std::vector<HWND>& labels)
+void handle_messages(message_map& map, const std::vector<HWND>& labels, int impl_index)
 {
-    map[WM_CHAR] = [&labels] (HWND hwnd, WPARAM wp, LPARAM) 
+    map[WM_CHAR] = [&labels, impl_index] (HWND hwnd, WPARAM wp, LPARAM) 
     {
         switch (static_cast<char>(wp))
         {
-            case 'g': SetWindowTextA(hwnd, benchmark_userdata_access(labels).c_str()); break;
+            case 'g': SetWindowTextA(hwnd, benchmark_userdata_access(impl_index, labels).c_str()); break;
             case 'q': DestroyWindow(hwnd); break;
         }
         return 0;
@@ -150,22 +157,26 @@ void handle_messages(message_map& map, const std::vector<HWND>& labels)
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
+    if (__argc < 2 || __argv[1][1] != '\0' || !isdigit(__argv[1][0]))
+        return 1;
+
+    const int impl_index = __argv[1][0] - '0';
     constexpr grid_dimensions grid{10, 10, 10};
     constexpr grid_cell_layout cell_layout{10, {20, 20}};
 
     const HWND main_window = create_main_window(cell_layout, grid);
     message_map main_message_map;
-    set_userdata(main_window, &main_message_map);
+    set_userdata(1, 0, main_window, &main_message_map);
 
     const std::vector<HWND> labels = create_labels(main_window, cell_layout, grid);
     std::vector<int> labels_userdata(labels.size());
     for (int i = 0; i < labels.size(); ++i)
     {
         labels_userdata[i] = rand() % 4711;
-        set_userdata(labels[i], &labels_userdata[i]);
+        set_userdata(impl_index, i, labels[i], &labels_userdata[i]);
     }
 
-    handle_messages(main_message_map, labels);
+    handle_messages(main_message_map, labels, impl_index);
     simple_message_loop();
 
     return 0;
