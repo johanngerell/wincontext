@@ -8,9 +8,6 @@
 #include "win32userdata.h"
 #include "win32api.h"
 
-std::unique_ptr<userdata> g_main_window_userdata;
-std::unique_ptr<userdata> g_label_userdata;
-
 struct grid_dimensions
 {
     int row_count{};
@@ -72,11 +69,14 @@ std::chrono::microseconds::rep benchmark_average_us(int sample_count, Func&& fun
     return std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / sample_count;
 }
 
-std::string benchmark_userdata_access(const std::vector<HWND>& labels)
+std::vector<HWND> g_labels;
+std::unique_ptr<userdata> g_label_userdata;
+
+std::string benchmark_label_userdata_access()
 {
-    const auto average_us = benchmark_average_us(100, [&labels]
+    const auto average_us = benchmark_average_us(100, []
     {
-        for (const HWND label : labels)
+        for (const HWND label : g_labels)
             g_label_userdata->get<int>(label) += 1;
     });
 
@@ -89,21 +89,31 @@ std::string benchmark_userdata_access(const std::vector<HWND>& labels)
     return text;
 }
 
-using message_map = std::unordered_map<UINT, std::function<LRESULT(HWND, WPARAM, LPARAM)>>;
-
-LRESULT CALLBACK message_map_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
-    if (auto handlers = g_main_window_userdata->try_get<message_map>(hwnd))
-        if (auto it = handlers->find(msg); it != handlers->end())
-            return it->second(hwnd, wp, lp);
+    switch (msg)
+    {
+        case WM_CHAR:
+            switch (static_cast<char>(wp))
+            {
+                case 'g': SetWindowTextA(hwnd, benchmark_label_userdata_access().c_str()); break;
+                case 'q': DestroyWindow(hwnd); break;
+            }
+            return 0;
 
-    return DefWindowProc(hwnd, msg, wp, lp);
+        case WM_DESTROY:
+            PostQuitMessage(0);
+            return 0;
+
+        default:
+            return DefWindowProc(hwnd, msg, wp, lp);
+    }
 }
 
 HWND create_main_window(const grid_cell_layout& cell_layout, const grid_dimensions& grid)
 {
     window_creation_info creation_info;
-    creation_info.class_name = register_window_class(message_map_wndproc, "Main Window Class");
+    creation_info.class_name = register_window_class(main_wndproc, "Main Window Class");
     creation_info.text       = "Press 'g' to measure userdata access";
     creation_info.style      = WS_POPUPWINDOW | WS_CAPTION;
     creation_info.size       = window_size_for_client(client_size_for_grid(grid, cell_layout), creation_info.style);
@@ -132,25 +142,6 @@ std::vector<HWND> create_labels(HWND parent, const grid_cell_layout& cell_layout
     return labels;
 }
 
-void handle_messages(message_map& map, const std::vector<HWND>& labels, int impl_index)
-{
-    map[WM_CHAR] = [&labels, impl_index] (HWND hwnd, WPARAM wp, LPARAM) 
-    {
-        switch (static_cast<char>(wp))
-        {
-            case 'g': SetWindowTextA(hwnd, benchmark_userdata_access(labels).c_str()); break;
-            case 'q': DestroyWindow(hwnd); break;
-        }
-        return 0;
-    };
-
-    map[WM_DESTROY] = [] (HWND, WPARAM, LPARAM)
-    {
-        PostQuitMessage(0);
-        return 0;
-    };
-}
-
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
     constexpr grid_dimensions grid{10, 10, 10};
@@ -161,21 +152,17 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
     const int impl_index = __argv[1][0] - '0';
     g_label_userdata = make_userdata(impl_index, grid.row_count * grid.column_count * grid.layer_count);
-    g_main_window_userdata = make_userdata(1, 0);
 
     const HWND main_window = create_main_window(cell_layout, grid);
-    message_map main_message_map;
-    g_main_window_userdata->set(main_window, &main_message_map);
 
-    const std::vector<HWND> labels = create_labels(main_window, cell_layout, grid);
-    std::vector<int> labels_userdata(labels.size());
-    for (int i = 0; i < labels.size(); ++i)
+    g_labels = create_labels(main_window, cell_layout, grid);
+    std::vector<int> labels_userdata(g_labels.size());
+    for (int i = 0; i < g_labels.size(); ++i)
     {
         labels_userdata[i] = rand() % 4711;
-        g_label_userdata->set(labels[i], &labels_userdata[i]);
+        g_label_userdata->set(g_labels[i], &labels_userdata[i]);
     }
 
-    handle_messages(main_message_map, labels, impl_index);
     simple_message_loop();
 
     return 0;
