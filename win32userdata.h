@@ -1,36 +1,20 @@
 #pragma once
 
 #include <windows.h>
-#include <memory>
 
-class userdata
+enum class userdata_kind
 {
-public:
-    template <typename T>
-    void set(HWND hwnd, T* data)
-    {
-        set_impl(hwnd, data);
-    }
-
-    template <typename T>
-    T& get(HWND hwnd)
-    {
-        return *reinterpret_cast<T*>(get_impl(hwnd));
-    }
-
-    template <typename T>
-    T* try_get(HWND hwnd)
-    {
-        return reinterpret_cast<T*>(get_impl(hwnd));
-    }
-
-    virtual const char* description() = 0;
-
-//protected:
-    virtual void set_impl(HWND hwnd, void* data) = 0;
-    virtual void* get_impl(HWND hwnd) = 0;
-
-    virtual ~userdata() = default;
+    baseline,
+    get_set_window_long,
+    get_set_prop,
+    get_set_prop_atom,
+    unordered_map,
+    map,
+    vector_sorted,
+    vector_unsorted
 };
 
-std::unique_ptr<userdata> make_userdata(int impl_index, int size_hint);
+void userdata_init(userdata_kind kind);
+const char* userdata_description();
+void userdata_set(HWND hwnd, void* data);
+void* userdata_get(HWND hwnd);
