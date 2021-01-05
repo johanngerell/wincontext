@@ -4,21 +4,27 @@
 #include "win32userdata.h"
 #include "win32api.h"
 
-struct grid_dimensions
+struct grid_info 
 {
     int row_count{};
     int column_count{};
     int layer_count{};
 };
 
-struct grid_location
+struct cell_info
 {
     int row_index{};
     int column_index{};
     int layer_index{};
 };
 
-grid_location grid_location_from_index(const grid_dimensions& grid, int index)
+struct grid_layout
+{
+    int cell_spacing{};
+    SIZE cell_size{};
+};
+
+cell_info cell_from_index(const grid_info& grid, int index)
 {
     return
     {
@@ -28,27 +34,21 @@ grid_location grid_location_from_index(const grid_dimensions& grid, int index)
     };
 }
 
-struct grid_cell_layout
-{
-    int spacing{};
-    SIZE size{};
-};
-
-SIZE client_size_for_grid(const grid_dimensions& grid, const grid_cell_layout& layout)
+SIZE grid_layout_size(const grid_info& grid, const grid_layout& layout)
 {
     return
     {
-        grid.column_count * (layout.size.cx + layout.spacing) + layout.spacing + grid.layer_count * 2,
-        grid.row_count    * (layout.size.cy + layout.spacing) + layout.spacing + grid.layer_count * 2
+        grid.column_count * (layout.cell_size.cx + layout.cell_spacing) + layout.cell_spacing + grid.layer_count * 2,
+        grid.row_count    * (layout.cell_size.cy + layout.cell_spacing) + layout.cell_spacing + grid.layer_count * 2
     };
 };
 
-POINT position_from_grid_location(const grid_location& location, const grid_cell_layout& layout)
+POINT cell_layout_position(const cell_info& cell, const grid_layout& layout)
 {
     return
     {
-        layout.spacing + layout.size.cy * location.row_index    + layout.spacing * location.row_index    + location.layer_index * 2,
-        layout.spacing + layout.size.cx * location.column_index + layout.spacing * location.column_index + location.layer_index * 2
+        cell.row_index    * (layout.cell_size.cy + layout.cell_spacing) + layout.cell_spacing + cell.layer_index * 2,
+        cell.column_index * (layout.cell_size.cx + layout.cell_spacing) + layout.cell_spacing + cell.layer_index * 2
     };
 }
 
@@ -113,58 +113,68 @@ LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 }
 
-HWND create_window(const grid_cell_layout& cell_layout, const grid_dimensions& grid)
+HWND create_window(SIZE client_size)
 {
     window_creation_info creation_info;
     creation_info.class_name = register_window_class(main_wndproc, "Main Window Class");
     creation_info.text       = "Press 'g' to measure userdata access";
     creation_info.style      = WS_POPUPWINDOW | WS_CAPTION;
-    creation_info.size       = window_size_for_client(client_size_for_grid(grid, cell_layout), creation_info.style);
+    creation_info.size       = window_size_for_client(client_size, creation_info.style);
     creation_info.position   = {100, 100};
 
     return create_window(creation_info);
 }
 
-std::vector<HWND> create_labels(HWND parent, const grid_cell_layout& cell_layout, const grid_dimensions& grid)
+std::vector<HWND> create_labels(HWND parent, const grid_info& grid, const grid_layout& layout)
 {
     window_creation_info creation_info;
     creation_info.parent     = parent;
     creation_info.class_name = "STATIC";
     creation_info.style      = SS_BLACKFRAME;
-    creation_info.size       = cell_layout.size;
+    creation_info.size       = layout.cell_size;
 
     // Layout all labels in a grid
     std::vector<HWND> labels(grid.row_count * grid.column_count * grid.layer_count);
 
     for (int i = 0; i < labels.size(); ++i)
     {
-        const auto location = grid_location_from_index(grid, i);
-        creation_info.position = position_from_grid_location(location, cell_layout);
+        const auto cell = cell_from_index(grid, i);
+        creation_info.position = cell_layout_position(cell, layout);
         labels[i] = create_window(creation_info);
     }
 
     return labels;
 }
 
+userdata_kind parse_command_line()
+{
+    if (__argc < 2 || __argv[1][1] != '\0' || !isdigit(__argv[1][0]))
+        throw std::invalid_argument("The first command line argument must be a digit");
+
+    return static_cast<userdata_kind>(__argv[1][0] - '0');
+}
+
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
-    constexpr grid_dimensions grid{10, 10, 10};
-    constexpr grid_cell_layout cell_layout{10, {20, 20}};
+    try
+    {
+        userdata_init(parse_command_line());
 
-    if (__argc < 2 || __argv[1][1] != '\0' || !isdigit(__argv[1][0]))
-        return 1;
+        constexpr grid_info grid{10, 10, 10};
+        constexpr grid_layout layout{10, {20, 20}};
+        const HWND window = create_window(grid_layout_size(grid, layout));
+        g_labels = create_labels(window, grid, layout);
+        g_labels_data.reserve(g_labels.size());
 
-    const int userdata_kind_index = __argv[1][0] - '0';
-    userdata_init(static_cast<userdata_kind>(userdata_kind_index));
+        for (const HWND label : g_labels)
+            userdata_set(label, &g_labels_data.emplace_back(rand() % 4711));
 
-    const HWND window = create_window(cell_layout, grid);
-    g_labels = create_labels(window, cell_layout, grid);
-    g_labels_data.reserve(g_labels.size());
-
-    for (const HWND label : g_labels)
-        userdata_set(label, &g_labels_data.emplace_back(rand() % 4711));
-
-    simple_message_loop();
+        simple_message_loop();
+    }
+    catch(const std::exception& e)
+    {
+        MessageBoxA(nullptr, e.what(), "Unhandled exception", MB_OK);
+    }
 
     return 0;
 }
