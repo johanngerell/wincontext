@@ -4,6 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include <memory>
+#include <functional>
 
 namespace
 {
@@ -157,13 +158,8 @@ struct userdata_5 final : userdata
 
 struct userdata_6 final : userdata
 {
-    struct userdata_item
-    {
-        HWND hwnd;
-        void* data;
-    };
-
-    std::vector<userdata_item> data;
+    using data_item = std::pair<HWND, void*>;
+    std::vector<std::pair<HWND, void*>> data;
 
     virtual const char* description() override
     {
@@ -172,27 +168,30 @@ struct userdata_6 final : userdata
 
     virtual void set(HWND hwnd, void* data_) override
     {
-        userdata_item item{hwnd, data_};
-        data.insert(std::upper_bound(data.begin(), data.end(), item, [](auto& first, auto& second) { return first.hwnd < second.hwnd; }), item);
+        data_item item{hwnd, data_};
+        auto it = std::upper_bound(data.begin(), data.end(), item, less_hwnd);
+        data.insert(it, std::move(item));
     }
 
     virtual void* get(HWND hwnd) override
     {
-        userdata_item item{hwnd, nullptr};
-        auto it = std::lower_bound(data.begin(), data.end(), item, [](auto& first, auto& second) { return first.hwnd < second.hwnd; });
-        return it != data.end() && it->hwnd == hwnd ? it->data : nullptr;
+        data_item item{hwnd, nullptr};
+        if (auto it = std::lower_bound(data.begin(), data.end(), item, less_hwnd); it != data.end() && it->first == hwnd)
+            return it->second;
+        else
+            return nullptr;
+    }
+
+    static bool less_hwnd(const data_item& item1, const data_item& item2)
+    {
+        return item1.first < item2.first;
     }
 };
 
 struct userdata_7 final : userdata
 {
-    struct userdata_item
-    {
-        HWND hwnd;
-        void* data;
-    };
-
-    std::vector<userdata_item> data;
+    using data_item = std::pair<HWND, void*>;
+    std::vector<data_item> data;
 
     virtual const char* description() override
     {
@@ -201,18 +200,25 @@ struct userdata_7 final : userdata
 
     virtual void set(HWND hwnd, void* data_) override
     {
-        userdata_item item{hwnd, data_};        
-        if (auto it = std::find_if(data.begin(), data.end(), [&item](auto& other){ return item.hwnd == other.hwnd; }); it != data.end())
-            it->data = data_;
+        data_item item{hwnd, data_};
+        if (auto it = std::find_if(data.begin(), data.end(), std::bind(equal_hwnd, item, std::placeholders::_1)); it != data.end())
+            it->second = data_;
         else
-            data.push_back(item);
+            data.push_back(std::move(item));
     }
 
     virtual void* get(HWND hwnd) override
     {
-        userdata_item item{hwnd, nullptr};
-        auto it = std::find_if(data.begin(), data.end(), [&item](auto& other){ return item.hwnd == other.hwnd; });
-        return it != data.end() ? it->data : nullptr;
+        data_item item{hwnd, nullptr};
+        if (auto it = std::find_if(data.begin(), data.end(), std::bind(equal_hwnd, item, std::placeholders::_1)); it != data.end())
+            return it->second;
+        else
+            return nullptr;
+    }
+
+    static bool equal_hwnd(const data_item& item1, const data_item& item2)
+    {
+        return item1.first == item2.first;
     }
 };
 
