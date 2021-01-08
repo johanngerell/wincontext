@@ -125,7 +125,7 @@ HWND create_window(SIZE client_size)
     return create_window(creation_info);
 }
 
-std::vector<HWND> create_labels(HWND parent, const grid_info& grid, const layout_info& layout)
+std::vector<HWND> create_labels(HWND parent, const layout_info& layout, const grid_info& grid)
 {
     window_creation_info creation_info;
     creation_info.parent     = parent;
@@ -154,6 +154,12 @@ std::vector<int> create_labels_data()
     return data;
 }
 
+void bind_userdata()
+{
+    for (int i = 0; i < g_labels.size(); ++i)
+        userdata_set(g_labels[i], &g_data[i]);
+}
+
 userdata_kind parse_command_line()
 {
     if (__argc != 2 || __argv[1][1] != '\0' || !isdigit(__argv[1][0]))
@@ -171,11 +177,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         constexpr grid_info grid{10, 10, 10};
         constexpr layout_info layout{10, {20, 20}};
         const HWND window = create_window(layout_grid_size(layout, grid));
-        g_labels = create_labels(window, grid, layout);
+        g_labels = create_labels(window, layout, grid);
         g_data = create_labels_data();
-
-        for (int i = 0; i < g_labels.size(); ++i)
-            userdata_set(g_labels[i], &g_data[i]);
+        bind_userdata();
 
         simple_message_loop();
     }
