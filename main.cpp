@@ -125,22 +125,27 @@ HWND create_window(SIZE client_size)
     return create_window(creation_info);
 }
 
-std::vector<HWND> create_labels(HWND parent, const layout_info& layout, const grid_info& grid)
+HWND create_label(HWND parent, POINT position, SIZE size)
 {
     window_creation_info creation_info;
     creation_info.parent     = parent;
     creation_info.class_name = "STATIC";
     creation_info.style      = SS_BLACKFRAME;
-    creation_info.size       = layout.cell_size;
+    creation_info.size       = size;
+    creation_info.position   = position;
 
-    // Layout all labels in a grid
+    return create_window(creation_info);
+}
+
+std::vector<HWND> create_labels(HWND parent, const layout_info& layout, const grid_info& grid)
+{
     std::vector<HWND> labels(grid.row_count * grid.column_count * grid.layer_count);
 
     std::generate(labels.begin(), labels.end(), [&, i = 0] () mutable
     {
         const auto cell = grid_index_cell(grid, i++);
-        creation_info.position = layout_cell_position(layout, cell);
-        return create_window(creation_info);
+        const auto position = layout_cell_position(layout, cell);
+        return create_label(parent, position, layout.cell_size);
     });
 
     return labels;
