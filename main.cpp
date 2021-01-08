@@ -1,6 +1,7 @@
 #include <chrono>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include "win32userdata.h"
 #include "win32api.h"
 
@@ -18,13 +19,13 @@ struct cell_info
     int layer_index{};
 };
 
-struct grid_layout
+struct layout_info
 {
     int cell_spacing{};
     SIZE cell_size{};
 };
 
-cell_info cell_from_index(const grid_info& grid, int index)
+cell_info grid_index_cell(const grid_info& grid, int index)
 {
     return
     {
@@ -34,7 +35,7 @@ cell_info cell_from_index(const grid_info& grid, int index)
     };
 }
 
-SIZE grid_layout_size(const grid_info& grid, const grid_layout& layout)
+SIZE layout_grid_size(const layout_info& layout, const grid_info& grid)
 {
     return
     {
@@ -43,7 +44,7 @@ SIZE grid_layout_size(const grid_info& grid, const grid_layout& layout)
     };
 };
 
-POINT cell_layout_position(const cell_info& cell, const grid_layout& layout)
+POINT layout_cell_position(const layout_info& layout, const cell_info& cell)
 {
     return
     {
@@ -53,7 +54,7 @@ POINT cell_layout_position(const cell_info& cell, const grid_layout& layout)
 }
 
 template <typename Func>
-std::chrono::nanoseconds::rep benchmark_average_ns(int sample_count, Func&& func)
+std::chrono::nanoseconds::rep benchmark(int sample_count, Func&& func)
 {
     const auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -66,25 +67,24 @@ std::chrono::nanoseconds::rep benchmark_average_ns(int sample_count, Func&& func
 }
 
 std::vector<HWND> g_labels;
-std::vector<int> g_labels_data;
+std::vector<int> g_data;
 
-std::string benchmark_label_userdata_access()
+std::string benchmark_userdata_access()
 {
     constexpr int sample_count = 100;
-    const std::vector<int> old_labels_data = g_labels_data;
+    const std::vector<int> old_data = g_data;
 
-    const auto average_sample_ns = benchmark_average_ns(sample_count, []
-    {
-        for (const HWND label : g_labels)
-            *static_cast<int*>(userdata_get(label)) += 1;
-    });
+    auto add_1 = [] (HWND label) { *static_cast<int*>(userdata_get(label)) += 1; };
+    const auto sample_ns = benchmark(sample_count, [&] { for(HWND label : g_labels) add_1(label); });
 
-    for (int i = 0; i < g_labels.size(); ++i)
-        if (old_labels_data[i] + sample_count != g_labels_data[i])
-            throw std::logic_error("Data mismatch");
+    auto added_sample_count = [sample_count](int v1, int v2) { return v1 + sample_count == v2; };
+    const bool mismatch = !std::equal(old_data.begin(), old_data.end(), g_data.begin(), g_data.end(), added_sample_count);
+    
+    if (mismatch)
+        throw std::logic_error("Data mismatch");
 
     std::string text("average call time: ");
-    text += std::to_string(average_sample_ns / g_labels.size());
+    text += std::to_string(sample_ns / g_labels.size());
     text += " ns (";
     text += userdata_description();
     text += ")";
@@ -99,7 +99,7 @@ LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         case WM_CHAR:
             switch (static_cast<char>(wp))
             {
-                case 'g': SetWindowTextA(hwnd, benchmark_label_userdata_access().c_str()); break;
+                case 'g': SetWindowTextA(hwnd, benchmark_userdata_access().c_str()); break;
                 case 'q': DestroyWindow(hwnd); break;
             }
             return 0;
@@ -125,7 +125,7 @@ HWND create_window(SIZE client_size)
     return create_window(creation_info);
 }
 
-std::vector<HWND> create_labels(HWND parent, const grid_info& grid, const grid_layout& layout)
+std::vector<HWND> create_labels(HWND parent, const grid_info& grid, const layout_info& layout)
 {
     window_creation_info creation_info;
     creation_info.parent     = parent;
@@ -136,19 +136,27 @@ std::vector<HWND> create_labels(HWND parent, const grid_info& grid, const grid_l
     // Layout all labels in a grid
     std::vector<HWND> labels(grid.row_count * grid.column_count * grid.layer_count);
 
-    for (int i = 0; i < labels.size(); ++i)
+    std::generate(labels.begin(), labels.end(), [&, i = 0] () mutable
     {
-        const auto cell = cell_from_index(grid, i);
-        creation_info.position = cell_layout_position(cell, layout);
-        labels[i] = create_window(creation_info);
-    }
+        const auto cell = grid_index_cell(grid, i++);
+        creation_info.position = layout_cell_position(layout, cell);
+        return create_window(creation_info);
+    });
 
     return labels;
 }
 
+std::vector<int> create_labels_data()
+{
+    std::vector<int> data(g_labels.size());
+    std::generate(data.begin(), data.end(), [] { return rand() % 4711; });
+
+    return data;
+}
+
 userdata_kind parse_command_line()
 {
-    if (__argc < 2 || __argv[1][1] != '\0' || !isdigit(__argv[1][0]))
+    if (__argc != 2 || __argv[1][1] != '\0' || !isdigit(__argv[1][0]))
         throw std::invalid_argument("The first command line argument must be a digit");
 
     return static_cast<userdata_kind>(__argv[1][0] - '0');
@@ -161,19 +169,19 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         userdata_init(parse_command_line());
 
         constexpr grid_info grid{10, 10, 10};
-        constexpr grid_layout layout{10, {20, 20}};
-        const HWND window = create_window(grid_layout_size(grid, layout));
+        constexpr layout_info layout{10, {20, 20}};
+        const HWND window = create_window(layout_grid_size(layout, grid));
         g_labels = create_labels(window, grid, layout);
-        g_labels_data.reserve(g_labels.size());
+        g_data = create_labels_data();
 
-        for (const HWND label : g_labels)
-            userdata_set(label, &g_labels_data.emplace_back(rand() % 4711));
+        for (int i = 0; i < g_labels.size(); ++i)
+            userdata_set(g_labels[i], &g_data[i]);
 
         simple_message_loop();
     }
     catch(const std::exception& e)
     {
-        MessageBoxA(nullptr, e.what(), "Unhandled exception", MB_OK);
+        MessageBoxA(nullptr, e.what(), "Error", MB_OK);
     }
 
     return 0;
