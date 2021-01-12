@@ -5,27 +5,39 @@
 #include "win32userdata.h"
 #include "win32api.h"
 
-struct grid_info 
+struct grid_info final
 {
-    int row_count{};
-    int column_count{};
-    int layer_count{};
+    size_t row_count{};
+    size_t column_count{};
+    size_t layer_count{};
 };
 
-struct cell_info
+struct cell_info final
 {
-    int row_index{};
-    int column_index{};
-    int layer_index{};
+    size_t row_index{};
+    size_t column_index{};
+    size_t layer_index{};
 };
 
-struct layout_info
+struct layout_point final
 {
-    int cell_spacing{};
-    SIZE cell_size{};
+    size_t x{};
+    size_t y{};
 };
 
-cell_info grid_index_cell(const grid_info& grid, int index)
+struct layout_size final
+{
+    size_t width{};
+    size_t height{};
+};
+
+struct layout_info final
+{
+    size_t cell_spacing{};
+    layout_size cell_size{};
+};
+
+cell_info grid_cell_at(const grid_info& grid, size_t index)
 {
     return
     {
@@ -35,30 +47,40 @@ cell_info grid_index_cell(const grid_info& grid, int index)
     };
 }
 
-SIZE layout_grid_size(const layout_info& layout, const grid_info& grid)
+POINT to_POINT(const layout_point& point)
 {
-    return
-    {
-        grid.column_count * (layout.cell_size.cx + layout.cell_spacing) + layout.cell_spacing + grid.layer_count * 2,
-        grid.row_count    * (layout.cell_size.cy + layout.cell_spacing) + layout.cell_spacing + grid.layer_count * 2
-    };
+    return {static_cast<LONG>(point.x), static_cast<LONG>(point.y)};
 };
 
-POINT layout_cell_position(const layout_info& layout, const cell_info& cell)
+SIZE to_SIZE(const layout_size& size)
+{
+    return {static_cast<LONG>(size.width), static_cast<LONG>(size.height)};
+};
+
+layout_point layout_cell_point(const layout_info& layout, const cell_info& cell)
 {
     return
     {
-        cell.row_index    * (layout.cell_size.cy + layout.cell_spacing) + layout.cell_spacing + cell.layer_index * 2,
-        cell.column_index * (layout.cell_size.cx + layout.cell_spacing) + layout.cell_spacing + cell.layer_index * 2
+        cell.row_index    * (layout.cell_size.height + layout.cell_spacing) + layout.cell_spacing + cell.layer_index * 2,
+        cell.column_index * (layout.cell_size.width + layout.cell_spacing)  + layout.cell_spacing + cell.layer_index * 2
     };
 }
 
+layout_size layout_grid_size(const layout_info& layout, const grid_info& grid)
+{
+    return
+    {
+        grid.column_count * (layout.cell_size.width + layout.cell_spacing)  + layout.cell_spacing + grid.layer_count * 2,
+        grid.row_count    * (layout.cell_size.height + layout.cell_spacing) + layout.cell_spacing + grid.layer_count * 2
+    };
+};
+
 template <typename Func>
-std::chrono::nanoseconds::rep benchmark(int sample_count, Func&& func)
+std::chrono::nanoseconds::rep benchmark(size_t sample_count, Func&& func)
 {
     const auto t1 = std::chrono::high_resolution_clock::now();
 
-    for (int sample = 0; sample < sample_count; ++sample)
+    for (size_t sample = 0; sample < sample_count; ++sample)
         func();
 
     const auto t2 = std::chrono::high_resolution_clock::now();
@@ -71,7 +93,7 @@ std::vector<int> g_data;
 
 std::string benchmark_userdata_access()
 {
-    constexpr int sample_count = 100;
+    constexpr size_t sample_count = 100;
     const std::vector<int> old_data = g_data;
 
     auto add_1 = [] (HWND label) { *static_cast<int*>(userdata_get(label)) += 1; };
@@ -143,9 +165,8 @@ std::vector<HWND> create_labels(HWND parent, const layout_info& layout, const gr
 
     std::generate(labels.begin(), labels.end(), [&, i = 0] () mutable
     {
-        const auto cell = grid_index_cell(grid, i++);
-        const auto position = layout_cell_position(layout, cell);
-        return create_label(parent, position, layout.cell_size);
+        const auto cell = grid_cell_at(grid, i++);
+        return create_label(parent, to_POINT(layout_cell_point(layout, cell)), to_SIZE(layout.cell_size));
     });
 
     return labels;
@@ -161,7 +182,7 @@ std::vector<int> create_labels_data()
 
 void bind_userdata()
 {
-    for (int i = 0; i < g_labels.size(); ++i)
+    for (size_t i = 0; i < g_labels.size(); ++i)
         userdata_set(g_labels[i], &g_data[i]);
 }
 
@@ -180,8 +201,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         userdata_init(parse_command_line());
 
         constexpr grid_info grid{10, 10, 10};
-        constexpr layout_info layout{10, {20, 20}};
-        const HWND window = create_window(layout_grid_size(layout, grid));
+        constexpr layout_info layout{10, 20, 20};
+        const HWND window = create_window(to_SIZE(layout_grid_size(layout, grid)));
         g_labels = create_labels(window, layout, grid);
         g_data = create_labels_data();
         bind_userdata();
