@@ -37,7 +37,7 @@ struct layout_info final
     layout_size cell_size{};
 };
 
-cell_info grid_cell_at(const grid_info& grid, size_t index)
+constexpr cell_info grid_cell_at(const grid_info& grid, size_t index)
 {
     return
     {
@@ -47,17 +47,17 @@ cell_info grid_cell_at(const grid_info& grid, size_t index)
     };
 }
 
-POINT to_POINT(const layout_point& point)
+constexpr POINT to_POINT(const layout_point& point)
 {
     return {static_cast<LONG>(point.x), static_cast<LONG>(point.y)};
 };
 
-SIZE to_SIZE(const layout_size& size)
+constexpr SIZE to_SIZE(const layout_size& size)
 {
     return {static_cast<LONG>(size.width), static_cast<LONG>(size.height)};
 };
 
-layout_point layout_cell_point(const layout_info& layout, const cell_info& cell)
+constexpr layout_point layout_cell_point(const layout_info& layout, const cell_info& cell)
 {
     return
     {
@@ -66,7 +66,7 @@ layout_point layout_cell_point(const layout_info& layout, const cell_info& cell)
     };
 }
 
-layout_size layout_grid_size(const layout_info& layout, const grid_info& grid)
+constexpr layout_size layout_grid_size(const layout_info& layout, const grid_info& grid)
 {
     return
     {
@@ -76,7 +76,7 @@ layout_size layout_grid_size(const layout_info& layout, const grid_info& grid)
 };
 
 template <typename Func>
-std::chrono::nanoseconds::rep benchmark(size_t sample_count, Func&& func)
+std::chrono::nanoseconds benchmark(size_t sample_count, Func&& func)
 {
     const auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -85,7 +85,7 @@ std::chrono::nanoseconds::rep benchmark(size_t sample_count, Func&& func)
 
     const auto t2 = std::chrono::high_resolution_clock::now();
     
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count() / sample_count;
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1) / sample_count;
 }
 
 std::vector<HWND> g_labels;
@@ -106,7 +106,7 @@ std::string benchmark_userdata_access()
         throw std::logic_error("Data mismatch");
 
     std::string text("average call time: ");
-    text += std::to_string(sample_ns / g_labels.size());
+    text += std::to_string(sample_ns.count() / g_labels.size());
     text += " ns (";
     text += userdata_description();
     text += ")";
