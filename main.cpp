@@ -1,7 +1,10 @@
 #include <chrono>
 #include <string>
 #include <vector>
+#include <optional>
 #include <algorithm>
+#include <iostream>
+#include <charconv>
 #include "win32userdata.h"
 #include "win32api.h"
 
@@ -186,22 +189,137 @@ void bind_userdata()
         userdata_set(g_labels[i], &g_data[i]);
 }
 
-userdata_kind parse_command_line()
+constexpr bool starts_with(std::string_view string, std::string_view start)
 {
-    if (__argc != 2 || __argv[1][1] != '\0' || !isdigit(__argv[1][0]))
-        throw std::invalid_argument("The first command line argument must be a digit");
+    return string.rfind(start, 0) == 0;
+}
 
-    return static_cast<userdata_kind>(__argv[1][0] - '0');
+constexpr std::optional<std::string_view> parse_value(std::string_view keyvalue, std::string_view key)
+{
+    if (!starts_with(keyvalue, key))
+        return std::nullopt;
+    
+    return keyvalue.substr(key.length());
+}
+
+std::optional<std::string_view> arg_find(std::string_view key)
+{
+    for (int i = 0; i < __argc; ++i)
+        if (auto value = parse_value(__argv[i], key))
+            return value;
+
+    return std::nullopt;
+}
+
+std::vector<std::string_view> split(std::string_view string, char delimiter)
+{
+    std::vector<std::string_view> tokens;
+
+    while (true)
+    {
+        const size_t offset = string.find(delimiter);
+
+        if (offset == std::string_view::npos)
+            break;
+
+        tokens.emplace_back(string.substr(0, offset));
+        string.remove_prefix(offset + 1);
+    }
+
+    tokens.emplace_back(string);
+
+    return tokens;
+}
+
+userdata_kind parse_userdata_kind()
+{
+    if (auto value = arg_find("option:"); !value->empty())
+    {
+        const char* first = value->data();
+        const char* last = first + value->size();
+        int parsed_value{};
+
+        if(auto [p, ec] = std::from_chars(first, last, parsed_value); ec == std::errc())
+            return static_cast<userdata_kind>(parsed_value);
+    }
+
+    throw std::invalid_argument("missing \"option:i\" where 'i' is in the interval [0, 6]");
+}
+
+grid_info parse_grid_info()
+{
+    if (auto value = arg_find("grid:"); !value->empty())
+    {
+        size_t member_index = 0;
+        grid_info grid;
+
+        for (const auto token : split(*value, ','))
+        {
+            const char* first = token.data();
+            const char* last = first + token.size();
+            int parsed_value{};
+
+            if(auto [p, ec] = std::from_chars(first, last, parsed_value); ec != std::errc())
+                throw std::invalid_argument("missing \"grid:i,j,k\" where 'i', 'j' and 'k' are rows, columns and layers");
+            
+            switch (member_index++)
+            {
+                case 0: grid.row_count = parsed_value; break;
+                case 1: grid.column_count = parsed_value; break;
+                case 2: grid.layer_count = parsed_value; break;
+            }
+        }
+
+        if(member_index != 3)
+            throw std::invalid_argument("missing \"grid:i,j,k\" where 'i', 'j' and 'k' are rows, columns and layers");
+
+        return grid;
+    }
+
+    throw std::invalid_argument("missing \"grid:i,j,k\" where 'i', 'j' and 'k' are rows, columns and layers");
+}
+
+layout_info parse_layout_info()
+{
+    if (auto value = arg_find("layout:"); !value->empty())
+    {
+        size_t member_index = 0;
+        layout_info layout;
+
+        for (const auto token : split(*value, ','))
+        {
+            const char* first = token.data();
+            const char* last = first + token.size();
+            int parsed_value{};
+
+            if(auto [p, ec] = std::from_chars(first, last, parsed_value); ec != std::errc())
+                throw std::invalid_argument("missing \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
+            
+            switch (member_index++)
+            {
+                case 0: layout.cell_spacing = parsed_value; break;
+                case 1: layout.cell_size.width = parsed_value; break;
+                case 2: layout.cell_size.height = parsed_value; break;
+            }
+        }
+
+        if(member_index != 3)
+            throw std::invalid_argument("missing \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
+
+        return layout;
+    }
+
+    throw std::invalid_argument("missing \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
 }
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
     try
     {
-        userdata_init(parse_command_line());
+        userdata_init(parse_userdata_kind());
 
-        constexpr grid_info grid{10, 10, 10};
-        constexpr layout_info layout{10, 20, 20};
+        const grid_info grid{parse_grid_info()};
+        const layout_info layout{parse_layout_info()};
         const HWND window = create_window(to_SIZE(layout_grid_size(layout, grid)));
         g_labels = create_labels(window, layout, grid);
         g_data = create_labels_data();
