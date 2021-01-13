@@ -139,26 +139,26 @@ LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 }
 
-HWND create_window(SIZE client_size)
+HWND create_window(layout_size client_size)
 {
     window_creation_info creation_info;
     creation_info.class_name = register_window_class(main_wndproc, "Main Window Class");
     creation_info.text       = "Press 'g' to measure userdata access";
     creation_info.style      = WS_POPUPWINDOW | WS_CAPTION;
-    creation_info.size       = window_size_for_client(client_size, creation_info.style);
+    creation_info.size       = window_size_for_client(to_SIZE(client_size), creation_info.style);
     creation_info.position   = {100, 100};
 
     return create_window(creation_info);
 }
 
-HWND create_label(HWND parent, POINT position, SIZE size)
+HWND create_label(HWND parent, layout_point point, layout_size size)
 {
     window_creation_info creation_info;
     creation_info.parent     = parent;
     creation_info.class_name = "STATIC";
     creation_info.style      = SS_BLACKFRAME;
-    creation_info.size       = size;
-    creation_info.position   = position;
+    creation_info.size       = to_SIZE(size);
+    creation_info.position   = to_POINT(point);
 
     return create_window(creation_info);
 }
@@ -170,7 +170,7 @@ std::vector<HWND> create_labels(HWND parent, const layout_info& layout, const gr
     std::generate(labels.begin(), labels.end(), [&, i = 0] () mutable
     {
         const auto cell = grid_cell_at(grid, i++);
-        return create_label(parent, to_POINT(layout_cell_point(layout, cell)), to_SIZE(layout.cell_size));
+        return create_label(parent, layout_cell_point(layout, cell), layout.cell_size);
     });
 
     return labels;
@@ -236,10 +236,14 @@ constexpr std::optional<U> from_chars(std::string_view string)
     return std::nullopt;
 }
 
-struct args final
+class args final
 {
     int argc{};
     char** argv{};
+
+public:
+    args() = default;
+    args(int argc, char** argv) : argc{argc}, argv{argv} {}
 
     using iterator = char**;
     using const_iterator = const iterator;
@@ -315,7 +319,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     {
         app_options options{args{__argc, __argv}};
         userdata_init(options.kind);
-        const HWND window = create_window(to_SIZE(layout_grid_size(options.layout, options.grid)));
+        const HWND window = create_window(layout_grid_size(options.layout, options.grid));
         g_labels = create_labels(window, options.layout, options.grid);
         g_data = create_labels_data();
         bind_userdata();
