@@ -1,6 +1,7 @@
 #include <chrono>
 #include <string>
 #include <vector>
+#include <array>
 #include <optional>
 #include <algorithm>
 #include <iostream>
@@ -194,87 +195,105 @@ constexpr bool starts_with(std::string_view string, std::string_view start)
     return string.rfind(start, 0) == 0;
 }
 
-constexpr std::optional<std::string_view> parse_value(std::string_view keyvalue, std::string_view key)
+template <size_t NumTokens>
+constexpr std::optional<std::array<std::string_view, NumTokens>> split(std::string_view string, char delimiter)
 {
-    if (!starts_with(keyvalue, key))
-        return std::nullopt;
-    
-    return keyvalue.substr(key.length());
+    std::array<std::string_view, NumTokens> tokens;
+    size_t i = 0;
+
+    while (true)
+    {
+        if (const size_t offset = string.find(delimiter); offset != std::string_view::npos)
+        {
+            if (i >= NumTokens)
+                return std::nullopt;
+
+            tokens[i++] = string.substr(0, offset);
+            string.remove_prefix(offset + 1);
+        }
+        else
+        {
+            tokens[i++] = std::move(string);
+            break;
+        }
+    }
+
+    if (i == NumTokens)
+        return tokens;
+
+    return std::nullopt;
 }
 
-std::optional<std::string_view> arg_find(std::string_view key)
+struct args final
 {
-    for (int i = 0; i < __argc; ++i)
-        if (auto value = parse_value(__argv[i], key))
+    int argc{};
+    char** argv{};
+
+    using iterator = char**;
+    using const_iterator = const iterator;
+
+    constexpr const_iterator begin() const { return &argv[0]; }
+    constexpr const_iterator end() const { return begin() + argc; }
+};
+
+constexpr std::optional<std::string_view> arg_parse_value(std::string_view arg, std::string_view key)
+{
+    if (starts_with(arg, key))
+        return arg.substr(key.length());
+    
+    return std::nullopt;
+}
+
+constexpr std::optional<std::string_view> args_parse_value(args a, std::string_view key)
+{
+    for (auto arg : a)
+        if (auto value = arg_parse_value(arg, key))
             return value;
 
     return std::nullopt;
 }
 
-std::vector<std::string_view> split(std::string_view string, char delimiter)
-{
-    std::vector<std::string_view> tokens;
-
-    while (true)
-    {
-        const size_t offset = string.find(delimiter);
-
-        if (offset == std::string_view::npos)
-            break;
-
-        tokens.emplace_back(string.substr(0, offset));
-        string.remove_prefix(offset + 1);
-    }
-
-    tokens.emplace_back(string);
-
-    return tokens;
-}
-
-template <typename T>
-constexpr T parse(std::string_view string)
+template <typename T, typename U = T>
+constexpr std::optional<U> parse(std::string_view string)
 {
     T value{};
     auto [_, result] = std::from_chars(string.data(), string.data() + string.size(), value);
 
-    if (result != std::errc())
-        throw std::invalid_argument("Cannot parse string");
+    if (result == std::errc())
+        return static_cast<U>(value);
 
-    return value;
+    return std::nullopt;
 }
 
-userdata_kind parse_userdata_kind()
+constexpr userdata_kind parse_userdata_kind(args a)
 {
-    if (auto value = arg_find("option:"); !value->empty())
-        return static_cast<userdata_kind>(parse<int>(*value));
+    if (const auto value = args_parse_value(a, "option:"))
+        if (const auto parsed = parse<int, userdata_kind>(*value))
+            return *parsed;
 
     throw std::invalid_argument("missing \"option:i\" where 'i' is in the interval [0, 6]");
 }
 
-grid_info parse_grid_info()
+constexpr grid_info parse_grid_info(args a)
 {
-    if (const auto value = arg_find("grid:"); !value->empty())
-        if (const auto tokens = split(*value, ','); tokens.size() == 3)
-            return
-            {
-                parse<size_t>(tokens[0]),
-                parse<size_t>(tokens[1]),
-                parse<size_t>(tokens[2])
-            };
+    if (const auto value = args_parse_value(a, "grid:"))
+        if (const auto tokens = split<3>(*value, ','))
+            if (const auto rows    = parse<size_t>((*tokens)[0]))
+            if (const auto columns = parse<size_t>((*tokens)[1]))
+            if (const auto layers  = parse<size_t>((*tokens)[2]))
+                return { *rows, *columns, *layers };
 
     throw std::invalid_argument("missing \"grid:i,j,k\" where 'i', 'j' and 'k' are rows, columns and layers");
 }
 
-layout_info parse_layout_info()
+constexpr layout_info parse_layout_info(args a)
 {
-    if (const auto value = arg_find("layout:"); !value->empty())
-        if (const auto tokens = split(*value, ','); tokens.size() == 3)
-            return
-            {
-                parse<size_t>(tokens[0]),
-                parse<size_t>(tokens[1]),
-                parse<size_t>(tokens[2])
-            };
+    if (const auto value = args_parse_value(a, "layout:"))
+        if (const auto tokens = split<3>(*value, ','))
+            if (const auto cell_spacing = parse<size_t>((*tokens)[0]))
+            if (const auto cell_width   = parse<size_t>((*tokens)[1]))
+            if (const auto cell_height  = parse<size_t>((*tokens)[2]))
+                return { *cell_spacing, *cell_width, *cell_height };
 
     throw std::invalid_argument("missing \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
 }
@@ -283,10 +302,12 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
     try
     {
-        userdata_init(parse_userdata_kind());
+        args a{__argc, __argv};
+        const userdata_kind kind{parse_userdata_kind(a)};
+        const grid_info grid{parse_grid_info(a)};
+        const layout_info layout{parse_layout_info(a)};
 
-        const grid_info grid{parse_grid_info()};
-        const layout_info layout{parse_layout_info()};
+        userdata_init(kind);
         const HWND window = create_window(to_SIZE(layout_grid_size(layout, grid)));
         g_labels = create_labels(window, layout, grid);
         g_data = create_labels_data();

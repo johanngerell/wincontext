@@ -41,7 +41,8 @@
         "iterator": "cpp",
         "memory": "cpp",
         "typeinfo": "cpp",
-        "charconv": "cpp"
+        "charconv": "cpp",
+        "optional": "cpp"
     },
     "workbench.settings.useSplitJSON": true
 }
