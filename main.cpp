@@ -231,83 +231,50 @@ std::vector<std::string_view> split(std::string_view string, char delimiter)
     return tokens;
 }
 
+template <typename T>
+constexpr T parse(std::string_view string)
+{
+    T value{};
+    auto [_, result] = std::from_chars(string.data(), string.data() + string.size(), value);
+
+    if (result != std::errc())
+        throw std::invalid_argument("Cannot parse string");
+
+    return value;
+}
+
 userdata_kind parse_userdata_kind()
 {
     if (auto value = arg_find("option:"); !value->empty())
-    {
-        const char* first = value->data();
-        const char* last = first + value->size();
-        int parsed_value{};
-
-        if(auto [p, ec] = std::from_chars(first, last, parsed_value); ec == std::errc())
-            return static_cast<userdata_kind>(parsed_value);
-    }
+        return static_cast<userdata_kind>(parse<int>(*value));
 
     throw std::invalid_argument("missing \"option:i\" where 'i' is in the interval [0, 6]");
 }
 
 grid_info parse_grid_info()
 {
-    if (auto value = arg_find("grid:"); !value->empty())
-    {
-        size_t member_index = 0;
-        grid_info grid;
-
-        for (const auto token : split(*value, ','))
-        {
-            const char* first = token.data();
-            const char* last = first + token.size();
-            int parsed_value{};
-
-            if(auto [p, ec] = std::from_chars(first, last, parsed_value); ec != std::errc())
-                throw std::invalid_argument("missing \"grid:i,j,k\" where 'i', 'j' and 'k' are rows, columns and layers");
-            
-            switch (member_index++)
+    if (const auto value = arg_find("grid:"); !value->empty())
+        if (const auto tokens = split(*value, ','); tokens.size() == 3)
+            return
             {
-                case 0: grid.row_count = parsed_value; break;
-                case 1: grid.column_count = parsed_value; break;
-                case 2: grid.layer_count = parsed_value; break;
-            }
-        }
-
-        if(member_index != 3)
-            throw std::invalid_argument("missing \"grid:i,j,k\" where 'i', 'j' and 'k' are rows, columns and layers");
-
-        return grid;
-    }
+                parse<size_t>(tokens[0]),
+                parse<size_t>(tokens[1]),
+                parse<size_t>(tokens[2])
+            };
 
     throw std::invalid_argument("missing \"grid:i,j,k\" where 'i', 'j' and 'k' are rows, columns and layers");
 }
 
 layout_info parse_layout_info()
 {
-    if (auto value = arg_find("layout:"); !value->empty())
-    {
-        size_t member_index = 0;
-        layout_info layout;
-
-        for (const auto token : split(*value, ','))
-        {
-            const char* first = token.data();
-            const char* last = first + token.size();
-            int parsed_value{};
-
-            if(auto [p, ec] = std::from_chars(first, last, parsed_value); ec != std::errc())
-                throw std::invalid_argument("missing \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
-            
-            switch (member_index++)
+    if (const auto value = arg_find("layout:"); !value->empty())
+        if (const auto tokens = split(*value, ','); tokens.size() == 3)
+            return
             {
-                case 0: layout.cell_spacing = parsed_value; break;
-                case 1: layout.cell_size.width = parsed_value; break;
-                case 2: layout.cell_size.height = parsed_value; break;
-            }
-        }
-
-        if(member_index != 3)
-            throw std::invalid_argument("missing \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
-
-        return layout;
-    }
+                parse<size_t>(tokens[0]),
+                parse<size_t>(tokens[1]),
+                parse<size_t>(tokens[2])
+            };
 
     throw std::invalid_argument("missing \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
 }
