@@ -107,7 +107,7 @@ std::string benchmark_userdata_access()
     const bool mismatch = !std::equal(old_data.begin(), old_data.end(), g_data.begin(), g_data.end(), added_sample_count);
     
     if (mismatch)
-        throw std::logic_error("Data mismatch");
+        throw std::logic_error("Benchmark data mismatch");
 
     std::string text("average call time: ");
     text += std::to_string(sample_ns.count() / g_labels.size());
@@ -224,6 +224,18 @@ constexpr std::optional<std::array<std::string_view, NumTokens>> split(std::stri
     return std::nullopt;
 }
 
+template <typename T, typename U = T>
+constexpr std::optional<U> from_chars(std::string_view string)
+{
+    T value{};
+    auto [_, result] = std::from_chars(string.data(), string.data() + string.size(), value);
+
+    if (result == std::errc())
+        return static_cast<U>(value);
+
+    return std::nullopt;
+}
+
 struct args final
 {
     int argc{};
@@ -236,7 +248,7 @@ struct args final
     constexpr const_iterator end() const { return begin() + argc; }
 };
 
-constexpr std::optional<std::string_view> arg_parse_value(std::string_view arg, std::string_view key)
+constexpr std::optional<std::string_view> arg_key_value(std::string_view arg, std::string_view key)
 {
     if (starts_with(arg, key))
         return arg.substr(key.length());
@@ -244,72 +256,67 @@ constexpr std::optional<std::string_view> arg_parse_value(std::string_view arg, 
     return std::nullopt;
 }
 
-constexpr std::optional<std::string_view> args_parse_value(args a, std::string_view key)
+constexpr std::optional<std::string_view> args_key_value(args a, std::string_view key)
 {
     for (auto arg : a)
-        if (auto value = arg_parse_value(arg, key))
+        if (auto value = arg_key_value(arg, key))
             return value;
-
-    return std::nullopt;
-}
-
-template <typename T, typename U = T>
-constexpr std::optional<U> parse(std::string_view string)
-{
-    T value{};
-    auto [_, result] = std::from_chars(string.data(), string.data() + string.size(), value);
-
-    if (result == std::errc())
-        return static_cast<U>(value);
 
     return std::nullopt;
 }
 
 constexpr userdata_kind parse_userdata_kind(args a)
 {
-    if (const auto value = args_parse_value(a, "option:"))
-        if (const auto parsed = parse<int, userdata_kind>(*value))
-            return *parsed;
+    if (const auto value = args_key_value(a, "option:"))
+        if (const auto kind = from_chars<int, userdata_kind>(*value))
+            return *kind;
 
-    throw std::invalid_argument("missing \"option:i\" where 'i' is in the interval [0, 6]");
+    throw std::invalid_argument("Incorrect argument \"option:i\" where 'i' is in the interval [0, 6]");
 }
 
 constexpr grid_info parse_grid_info(args a)
 {
-    if (const auto value = args_parse_value(a, "grid:"))
+    if (const auto value = args_key_value(a, "grid:"))
         if (const auto tokens = split<3>(*value, ','))
-            if (const auto rows    = parse<size_t>((*tokens)[0]))
-            if (const auto columns = parse<size_t>((*tokens)[1]))
-            if (const auto layers  = parse<size_t>((*tokens)[2]))
+            if (const auto rows    = from_chars<size_t>((*tokens)[0]))
+            if (const auto columns = from_chars<size_t>((*tokens)[1]))
+            if (const auto layers  = from_chars<size_t>((*tokens)[2]))
                 return { *rows, *columns, *layers };
 
-    throw std::invalid_argument("missing \"grid:i,j,k\" where 'i', 'j' and 'k' are rows, columns and layers");
+    throw std::invalid_argument("Incorrect argument \"grid:i,j,k\" where 'i', 'j' and 'k' are rows, columns and layers");
 }
 
 constexpr layout_info parse_layout_info(args a)
 {
-    if (const auto value = args_parse_value(a, "layout:"))
+    if (const auto value = args_key_value(a, "layout:"))
         if (const auto tokens = split<3>(*value, ','))
-            if (const auto cell_spacing = parse<size_t>((*tokens)[0]))
-            if (const auto cell_width   = parse<size_t>((*tokens)[1]))
-            if (const auto cell_height  = parse<size_t>((*tokens)[2]))
+            if (const auto cell_spacing = from_chars<size_t>((*tokens)[0]))
+            if (const auto cell_width   = from_chars<size_t>((*tokens)[1]))
+            if (const auto cell_height  = from_chars<size_t>((*tokens)[2]))
                 return { *cell_spacing, *cell_width, *cell_height };
 
-    throw std::invalid_argument("missing \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
+    throw std::invalid_argument("Incorrect argument \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
 }
+
+class app_options final
+{
+    args a;
+
+public:
+    app_options(args a) : a{a} {}
+    userdata_kind kind  {parse_userdata_kind(a)};
+    grid_info     grid  {parse_grid_info(a)};
+    layout_info   layout{parse_layout_info(a)};
+};
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
     try
     {
-        args a{__argc, __argv};
-        const userdata_kind kind{parse_userdata_kind(a)};
-        const grid_info grid{parse_grid_info(a)};
-        const layout_info layout{parse_layout_info(a)};
-
-        userdata_init(kind);
-        const HWND window = create_window(to_SIZE(layout_grid_size(layout, grid)));
-        g_labels = create_labels(window, layout, grid);
+        app_options options{args{__argc, __argv}};
+        userdata_init(options.kind);
+        const HWND window = create_window(to_SIZE(layout_grid_size(options.layout, options.grid)));
+        g_labels = create_labels(window, options.layout, options.grid);
         g_data = create_labels_data();
         bind_userdata();
 
