@@ -3,21 +3,10 @@
 #include <map>
 #include <vector>
 #include <algorithm>
-#include <memory>
 #include <functional>
 
 namespace
 {
-
-struct userdata
-{
-    virtual const char* description() = 0;
-
-    virtual void set(HWND hwnd, void* data) = 0;
-    virtual void* get(HWND hwnd) = 0;
-
-    virtual ~userdata() = default;
-};
 
 struct userdata_0 final : userdata
 {
@@ -222,7 +211,9 @@ struct userdata_7 final : userdata
     }
 };
 
-std::unique_ptr<userdata> make_userdata(userdata_kind kind)
+}
+
+std::unique_ptr<userdata> create_userdata(userdata_kind kind)
 {
     switch (kind)
     {
@@ -236,29 +227,4 @@ std::unique_ptr<userdata> make_userdata(userdata_kind kind)
         case userdata_kind::vector_unsorted:     return std::make_unique<userdata_7>();    
         default: return nullptr;
     }
-}
-
-std::unique_ptr<userdata> g_userdata;
-
-}
-
-void userdata_init(userdata_kind kind)
-{
-    g_userdata = make_userdata(kind);
-}
-
-const char* userdata_description()
-{
-    return g_userdata ? g_userdata->description() : nullptr;
-}
-
-void userdata_set(HWND hwnd, void* data)
-{
-    if (g_userdata)
-        g_userdata->set(hwnd, data);
-}
-
-void* userdata_get(HWND hwnd)
-{
-    return g_userdata ? g_userdata->get(hwnd) : nullptr;
 }

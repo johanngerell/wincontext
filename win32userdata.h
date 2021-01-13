@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include <memory>
 
 enum class userdata_kind
 {
@@ -14,7 +15,14 @@ enum class userdata_kind
     vector_unsorted
 };
 
-void userdata_init(userdata_kind kind);
-const char* userdata_description();
-void userdata_set(HWND hwnd, void* data);
-void* userdata_get(HWND hwnd);
+class userdata
+{
+public:
+    virtual void set(HWND hwnd, void* data) = 0;
+    virtual void* get(HWND hwnd) = 0;
+    virtual const char* description() = 0;
+
+    virtual ~userdata() = default;
+};
+
+std::unique_ptr<userdata> create_userdata(userdata_kind kind);
