@@ -42,7 +42,8 @@
         "memory": "cpp",
         "typeinfo": "cpp",
         "charconv": "cpp",
-        "optional": "cpp"
+        "optional": "cpp",
+        "string_view": "cpp"
     },
     "workbench.settings.useSplitJSON": true
 }
