@@ -70,8 +70,6 @@ void create_main_window(const layout_info& layout, const grid_info& grid)
 
 void create_labels(const layout_info& layout, const grid_info& grid)
 {
-    g_labels.resize(grid.row_count * grid.column_count * grid.layer_count);
-
     auto create_label = [] (layout_point point, layout_size size)
     {
         window_creation_info creation_info;
@@ -83,6 +81,8 @@ void create_labels(const layout_info& layout, const grid_info& grid)
 
         return create_window(creation_info);
     };
+
+    g_labels.resize(grid.row_count * grid.column_count * grid.layer_count);
 
     std::generate(g_labels.begin(), g_labels.end(), [&, i = 0] () mutable
     {
