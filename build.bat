@@ -7,7 +7,7 @@ echo Syntax: %0 [debug^|release] && exit /b 1
 
 :build
 
-set "input=main.cpp win32userdata.cpp win32api.cpp"
+set "input=main.cpp win32_userdata.cpp win32_api.cpp"
 set "output_dir=%1"
 set "output_exe=%output_dir%\wincontext.exe"
 set "output=/Fe^"%output_exe%^" /Fo^"%output_dir%/^" /Fd^"%output_dir%/^""

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "win32error.h"
+#include "win32_error.h"
 
 const char* register_window_class(WNDPROC wndproc, const char* name);
 
