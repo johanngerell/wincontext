@@ -12,41 +12,53 @@ using test_case = std::function<void()>;
 using test_suite = std::vector<test_case>;
 using test_suites = std::vector<test_suite>;
 
-struct color_green final
+class ansi_color
 {
-    static const char* fg() { return "32"; }
+public:
+    const char* code() const { return m_code; }
+
+protected:
+    ansi_color(const char* code) : m_code{code} {}
+
+private:
+    const char* m_code{};
 };
 
-struct color_yellow final
+struct fg final : ansi_color
 {
-    static const char* fg() { return "33"; }
+    using ansi_color::ansi_color;
+
+    static fg normal() { return "39"; }
+    static fg green()  { return "32"; }
+    static fg yellow() { return "33"; }
 };
 
-struct color_default final
+struct bg final : ansi_color
 {
-    static const char* bg() { return "49"; }
+    using ansi_color::ansi_color;
+
+    static bg normal() { return "49"; }
 };
 
-template <typename FG, typename BG = color_default>
-class ansi_color final
+class ostream_color final
 {
     std::ostream& m_stream;
 
 public:
-    ansi_color(std::ostream& stream)
+    ostream_color(std::ostream& stream, fg f, bg b = bg::normal())
         : m_stream{stream}
     {
-        m_stream << "\033[" << FG::fg() << ";" << BG::bg() << "m";
+        m_stream << "\033[" << f.code() << ";" << b.code() << "m";
     }
 
     template <typename T>
-    friend std::ostream& operator<<(const ansi_color<typename FG, typename BG>& self, const T& t)
+    friend std::ostream& operator<<(const ostream_color& self, const T& t)
     {
         self.m_stream << t;
         return self.m_stream;
     }
 
-    ~ansi_color()
+    ~ostream_color()
     {
         m_stream << "\033[0m";
     }
@@ -65,14 +77,12 @@ void test_run(const test_suites& suites)
 
     if (test_count > 0)
     {
-        const char* test_case_string = test_count == 1 ? " test case" : " test cases";
-        const char* suite_string = suites.size() == 1 ? " test suite" : " test suites";
-        ansi_color<color_green>(std::cout) << "All tests succeeded\n";
-        std::cout << "  " << test_count  << test_case_string << "\n"
-                  << "  " << suites.size() << suite_string     << "\n";
+        ostream_color(std::cout, fg::green()) << "All tests succeeded\n";
+        std::cout << "  " << test_count  << (test_count == 1 ? " test case" : " test cases") << "\n"
+                  << "  " << suites.size() << (suites.size() == 1 ? " test suite" : " test suites") << "\n";
     }
     else
-        ansi_color<color_yellow>(std::cout) << "No test cases\n";
+        ostream_color(std::cout, fg::yellow()) << "No test cases\n";
 }
 
 test_suite test_string_split()
