@@ -5,7 +5,7 @@
 #include "jg_string.h"
 
 #ifdef NDEBUG
-#error NDEBUG is defined ans assert() is a nop
+#error NDEBUG is defined and assert() is a no-op
 #endif
 
 using test_case = std::function<void()>;
@@ -28,22 +28,54 @@ struct fg final : ansi_color
 {
     using ansi_color::ansi_color;
 
-    static fg normal() { return "39"; }
-    static fg green()  { return "32"; }
-    static fg yellow() { return "33"; }
+    static fg normal()         { return "39"; }
+
+    static fg black()          { return "30"; }
+    static fg red()            { return "31"; }
+    static fg green()          { return "32"; }
+    static fg yellow()         { return "33"; }
+    static fg blue()           { return "34"; }
+    static fg magenta()        { return "35"; }
+    static fg cyan()           { return "36"; }
+    static fg white()          { return "37"; }
+
+    static fg black_bright()   { return "90"; }
+    static fg red_bright()     { return "91"; }
+    static fg green_bright()   { return "92"; }
+    static fg yellow_bright()  { return "93"; }
+    static fg blue_bright()    { return "94"; }
+    static fg magenta_bright() { return "95"; }
+    static fg cyan_bright()    { return "96"; }
+    static fg white_bright()   { return "97"; }
 };
 
 struct bg final : ansi_color
 {
     using ansi_color::ansi_color;
 
-    static bg normal() { return "49"; }
+    static bg normal()         { return "49"; }
+
+    static bg black()          { return "40"; }
+    static bg red()            { return "41"; }
+    static bg green()          { return "42"; }
+    static bg yellow()         { return "43"; }
+    static bg blue()           { return "44"; }
+    static bg magenta()        { return "45"; }
+    static bg cyan()           { return "46"; }
+    static bg white()          { return "47"; }
+
+    static bg black_bright()   { return "100"; }
+    static bg red_bright()     { return "101"; }
+    static bg green_bright()   { return "102"; }
+    static bg yellow_bright()  { return "103"; }
+    static bg blue_bright()    { return "104"; }
+    static bg magenta_bright() { return "105"; }
+    static bg cyan_bright()    { return "106"; }
+    static bg white_bright()   { return "107"; }
 };
 
 class ostream_color final
 {
-    std::ostream& m_stream;
-
 public:
     ostream_color(std::ostream& stream, fg f, bg b = bg::normal())
         : m_stream{stream}
@@ -62,6 +94,9 @@ public:
     {
         m_stream << "\033[0m";
     }
+
+private:
+    std::ostream& m_stream;
 };
 
 void test_run(const test_suites& suites)
@@ -175,40 +210,8 @@ test_suite test_string_split()
 
 int main()
 {
-    test_run({
+    test_run(
+    {
         test_string_split()
     });
-
-    /*
-    printf("\n");
-
-    printf("\033[30mBlack FG\033[0m           "); 
-    printf("\033[31mRed FG\033[0m             "); 
-    printf("\033[32mGreen FG\033[0m           ");
-    printf("\033[33mYellow FG\033[0m          ");
-    printf("\033[34mBlue FG\033[0m            ");
-    printf("\033[35mMagenta FG\033[0m         ");
-    printf("\033[36mCyan FG\033[0m            ");
-    printf("\033[37mWhite FG\033[0m\n");
-
-    printf("\033[90mBright Black FG\033[0m    "); 
-    printf("\033[91mBright Red FG\033[0m      "); 
-    printf("\033[92mBright Green FG\033[0m    ");
-    printf("\033[93mBright Yellow FG\033[0m   ");
-    printf("\033[94mBright Blue FG\033[0m     ");
-    printf("\033[95mBright Magenta FG\033[0m  ");
-    printf("\033[96mBright Cyan FG\033[0m     ");
-    printf("\033[97mBright White FG\033[0m\n");
-
-    printf("\033[30;47mBlack FG\033[0m           "); 
-    printf("\033[31;47mRed FG\033[0m             "); 
-    printf("\033[32;47mGreen FG\033[0m           ");
-    printf("\033[33;47mYellow FG\033[0m          ");
-    printf("\033[34;47mBlue FG\033[0m            ");
-    printf("\033[35;47mMagenta FG\033[0m         ");
-    printf("\033[36;47mCyan FG\033[0m            ");
-    printf("\033[37;47mWhite FG\033[0m\n");
-
-    printf("\n");
-    */
 }
