@@ -5,6 +5,16 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "(Windows) Launch Test",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "test/test.exe",
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false
+        },
+        {
             "name": "(Windows) Launch Debug",
             "type": "cppvsdbg",
             "request": "launch",

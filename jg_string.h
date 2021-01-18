@@ -13,30 +13,27 @@ inline constexpr bool starts_with(std::string_view string, std::string_view star
 template <size_t NumTokens>
 constexpr std::optional<std::array<std::string_view, NumTokens>> split(std::string_view string, char delimiter)
 {
+    static_assert(NumTokens > 0);
+
     std::array<std::string_view, NumTokens> tokens;
-    size_t i = 0;
 
-    while (true)
+    for (size_t i = 0; i < NumTokens; ++i)
     {
-        if (const size_t offset = string.find(delimiter); offset != std::string_view::npos)
-        {
-            if (i >= NumTokens)
-                return std::nullopt;
+        const size_t offset = string.find(delimiter);
 
-            tokens[i++] = string.substr(0, offset);
+        if (offset != std::string_view::npos && i == NumTokens - 1)
+            return std::nullopt;
+
+        if (offset == std::string_view::npos && i != NumTokens - 1)
+            return std::nullopt;
+
+        tokens[i] = string.substr(0, offset);
+
+        if (offset != std::string_view::npos)
             string.remove_prefix(offset + 1);
-        }
-        else
-        {
-            tokens[i++] = std::move(string);
-            break;
-        }
     }
 
-    if (i == NumTokens)
-        return tokens;
-
-    return std::nullopt;
+    return tokens;
 }
 
 template <typename T, typename U = T>
