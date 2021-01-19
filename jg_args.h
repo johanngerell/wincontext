@@ -30,9 +30,9 @@ constexpr std::optional<std::string_view> arg_key_value(std::string_view arg, st
     return std::nullopt;
 }
 
-constexpr std::optional<std::string_view> args_key_value(args a, std::string_view key)
+constexpr std::optional<std::string_view> args_key_value(jg::args args, std::string_view key)
 {
-    for (auto arg : a)
+    for (auto arg : args)
         if (auto value = arg_key_value(arg, key))
             return value;
 
