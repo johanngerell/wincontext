@@ -2,6 +2,9 @@
 
 #include <chrono>
 
+namespace jg
+{
+
 template <typename Func>
 std::chrono::nanoseconds benchmark(size_t sample_count, Func&& func)
 {
@@ -14,3 +17,5 @@ std::chrono::nanoseconds benchmark(size_t sample_count, Func&& func)
     
     return std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1) / sample_count;
 }
+
+} // namespace jg

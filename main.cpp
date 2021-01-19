@@ -16,7 +16,7 @@ std::string benchmark_userdata_access()
     const std::vector<int> old_data = g_data;
 
     auto add_1 = [] (HWND label) { *static_cast<int*>(g_userdata->get(label)) += 1; };
-    const auto sample_ns = benchmark(sample_count, [&] { for(HWND label : g_labels) add_1(label); });
+    const auto sample_ns = jg::benchmark(sample_count, [&] { for(HWND label : g_labels) add_1(label); });
 
     auto added_sample_count = [sample_count](int v1, int v2) { return v1 + sample_count == v2; };
     const bool mismatch = !std::equal(old_data.begin(), old_data.end(), g_data.begin(), g_data.end(), added_sample_count);
@@ -108,7 +108,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
     try
     {
-        app_options options{args{__argc, __argv}};
+        app_options options{jg::args{__argc, __argv}};
         g_userdata = create_userdata(options.kind);
         create_main_window(options.layout, options.grid);
         create_labels(options.layout, options.grid);

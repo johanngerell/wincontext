@@ -5,7 +5,10 @@
 #include <optional>
 #include <string_view>
 
-inline constexpr bool starts_with(std::string_view string, std::string_view start)
+namespace jg
+{
+
+constexpr bool starts_with(std::string_view string, std::string_view start)
 {
     return string.rfind(start, 0) == 0;
 }
@@ -47,3 +50,5 @@ constexpr std::optional<U> from_chars(std::string_view string)
 
     return std::nullopt;
 }
+
+} // namespace jg
