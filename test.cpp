@@ -3,72 +3,63 @@
 #include <string>
 #include "jg_string.h"
 
+template <typename Tag>
 class ansi_color
 {
 public:
-    const char* code() const { return m_code; }
-
-protected:
     ansi_color(const char* code) : m_code{code} {}
+    const char* code() const { return m_code; }
 
 private:
     const char* m_code{};
 };
 
-struct fg final : ansi_color
-{
-    using ansi_color::ansi_color;
+struct fg_tag{};
+using fg = ansi_color<fg_tag>;
 
-    static fg normal()         { return "39"; }
+struct bg_tag{};
+using bg = ansi_color<bg_tag>;
 
-    static fg black()          { return "30"; }
-    static fg red()            { return "31"; }
-    static fg green()          { return "32"; }
-    static fg yellow()         { return "33"; }
-    static fg blue()           { return "34"; }
-    static fg magenta()        { return "35"; }
-    static fg cyan()           { return "36"; }
-    static fg white()          { return "37"; }
+fg fg_normal()         { return "39"; }
+fg fg_black()          { return "30"; }
+fg fg_red()            { return "31"; }
+fg fg_green()          { return "32"; }
+fg fg_yellow()         { return "33"; }
+fg fg_blue()           { return "34"; }
+fg fg_magenta()        { return "35"; }
+fg fg_cyan()           { return "36"; }
+fg fg_white()          { return "37"; }
+fg fg_black_bright()   { return "90"; }
+fg fg_red_bright()     { return "91"; }
+fg fg_green_bright()   { return "92"; }
+fg fg_yellow_bright()  { return "93"; }
+fg fg_blue_bright()    { return "94"; }
+fg fg_magenta_bright() { return "95"; }
+fg fg_cyan_bright()    { return "96"; }
+fg fg_white_bright()   { return "97"; }
 
-    static fg black_bright()   { return "90"; }
-    static fg red_bright()     { return "91"; }
-    static fg green_bright()   { return "92"; }
-    static fg yellow_bright()  { return "93"; }
-    static fg blue_bright()    { return "94"; }
-    static fg magenta_bright() { return "95"; }
-    static fg cyan_bright()    { return "96"; }
-    static fg white_bright()   { return "97"; }
-};
-
-struct bg final : ansi_color
-{
-    using ansi_color::ansi_color;
-
-    static bg normal()         { return "49"; }
-
-    static bg black()          { return "40"; }
-    static bg red()            { return "41"; }
-    static bg green()          { return "42"; }
-    static bg yellow()         { return "43"; }
-    static bg blue()           { return "44"; }
-    static bg magenta()        { return "45"; }
-    static bg cyan()           { return "46"; }
-    static bg white()          { return "47"; }
-
-    static bg black_bright()   { return "100"; }
-    static bg red_bright()     { return "101"; }
-    static bg green_bright()   { return "102"; }
-    static bg yellow_bright()  { return "103"; }
-    static bg blue_bright()    { return "104"; }
-    static bg magenta_bright() { return "105"; }
-    static bg cyan_bright()    { return "106"; }
-    static bg white_bright()   { return "107"; }
-};
+bg bg_normal()         { return "49"; }
+bg bg_black()          { return "40"; }
+bg bg_red()            { return "41"; }
+bg bg_green()          { return "42"; }
+bg bg_yellow()         { return "43"; }
+bg bg_blue()           { return "44"; }
+bg bg_magenta()        { return "45"; }
+bg bg_cyan()           { return "46"; }
+bg bg_white()          { return "47"; }
+bg bg_black_bright()   { return "100"; }
+bg bg_red_bright()     { return "101"; }
+bg bg_green_bright()   { return "102"; }
+bg bg_yellow_bright()  { return "103"; }
+bg bg_blue_bright()    { return "104"; }
+bg bg_magenta_bright() { return "105"; }
+bg bg_cyan_bright()    { return "106"; }
+bg bg_white_bright()   { return "107"; }
 
 class ostream_color final
 {
 public:
-    ostream_color(std::ostream& stream, fg f, bg b = bg::normal())
+    ostream_color(std::ostream& stream, fg f, bg b = bg_normal())
         : m_stream{stream}
     {
         m_stream << "\033[" << f.code() << ";" << b.code() << "m";
@@ -129,11 +120,11 @@ int test_run(const test_suites& suites)
     g_statistics = nullptr;
 
     if (statistics.case_count == 0)
-        ostream_color(std::cout, fg::yellow()) << "No test cases\n";
+        ostream_color(std::cout, fg_yellow()) << "No test cases\n";
     else
     {
         if (statistics.assertion_fail_count == 0)
-            ostream_color(std::cout, fg::green()) << "All tests succeeded\n";
+            ostream_color(std::cout, fg_green()) << "All tests succeeded\n";
 
         std::cout << "  " << statistics.assertion_count  << (statistics.assertion_count == 1 ? " test assertion" : " test assertions") << "\n"
                   << "  " << statistics.case_count       << (statistics.case_count == 1 ? " test case" : " test cases") << "\n"
@@ -158,8 +149,8 @@ inline void test_assert_impl(bool expr_value, const char* expr_string, const cha
     if (g_statistics)
         g_statistics->assertion_fail_count++;
     
-    ostream_color(std::cout, fg::red()) << "Test assertion '" << expr_string << "' failed at "
-                                        << file << ":" << line << "\n";
+    ostream_color(std::cout, fg_red()) << "Test assertion '" << expr_string << "' failed at "
+                                       << file << ":" << line << "\n";
 }
 
 #define test_assert(expr) test_assert_impl((expr), #expr, __FILE__,  __LINE__) 
