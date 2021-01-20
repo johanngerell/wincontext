@@ -1,8 +1,8 @@
 #pragma once
 
 #include <stdexcept>
+#include <jg_args.h>
 #include "win32_userdata.h"
-#include "jg_args.h"
 #include "app_types.h"
 
 constexpr userdata_kind parse_userdata_kind(jg::args args)

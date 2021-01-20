@@ -1,7 +1,7 @@
 #include <algorithm>
 #include <string>
 #include <vector>
-#include "jg_benchmark.h"
+#include <jg_benchmark.h>
 #include "win32_api.h"
 #include "app_options.h"
 

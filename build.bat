@@ -22,8 +22,9 @@ if "%1"=="test" (
     set "lflags=/SUBSYSTEM:WINDOWS /DEBUG /INCREMENTAL:NO /OPT:REF /OPT:ICF user32.lib"
 )
 
+set "inc_dir=/I submodules\jg\inc"
 set "output=/Fe^"%output_dir%\%output_exe%^" /Fo^"%output_dir%/^" /Fd^"%output_dir%/^""
-set "cflags=/nologo /EHsc %optimization% /W4 /WX /Zi /std:c++17 %output% %input%"
+set "cflags=/nologo /EHsc %optimization% /W4 /WX /Zi /std:c++17 %inc_dir% %output% %input%"
 
 if not exist "%output_dir%" mkdir %output_dir%
 
