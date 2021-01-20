@@ -33,12 +33,17 @@ std::string benchmark_userdata_access()
     return text;
 }
 
+constexpr char wm_char_key(WPARAM wp, LPARAM)
+{
+    return static_cast<char>(wp);
+}
+
 LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg)
     {
         case WM_CHAR:
-            switch (static_cast<char>(wp))
+            switch (wm_char_key(wp, lp))
             {
                 case 'g': SetWindowTextA(hwnd, benchmark_userdata_access().c_str()); break;
                 case 'q': DestroyWindow(hwnd); break;

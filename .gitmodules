@@ -1,0 +1,3 @@
+[submodule "submodules/jg"]
+	path = submodules/jg
+	url = https://github.com/johanngerell/jg.git
