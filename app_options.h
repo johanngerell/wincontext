@@ -38,14 +38,15 @@ constexpr layout_info parse_layout_info(jg::args args)
     throw std::invalid_argument("Incorrect argument \"layout:i,j,k\" where 'i', 'j' and 'k' are cell spacing, cell width and cell height");
 }
 
-class app_options final
-{
-public:
-    app_options(jg::args args) : args{args} {}
-    userdata_kind kind  {parse_userdata_kind(args)};
-    grid_info     grid  {parse_grid_info(args)};
-    layout_info   layout{parse_layout_info(args)};
+struct app_options final
+{   
+    userdata_kind kind;
+    grid_info     grid;
+    layout_info   layout;
 
-private:
-    jg::args args;
+    app_options(jg::args args)
+        : kind  {parse_userdata_kind(args)}
+        , grid  {parse_grid_info(args)}
+        , layout{parse_layout_info(args)}
+    {}
 };

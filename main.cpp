@@ -108,7 +108,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
     try
     {
-        app_options options{jg::args{__argc, __argv}};
+        const app_options options{{__argc, __argv}};
         g_userdata = create_userdata(options.kind);
         create_main_window(options.layout, options.grid);
         create_labels(options.layout, options.grid);
