@@ -15,5 +15,4 @@ add_compile_options(/Zc:__cplusplus /EHsc /W4 /WX /Zi)
 add_link_options(/DEBUG /INCREMENTAL:NO /OPT:REF /OPT:ICF)
 
 add_executable(wincontext WIN32 src/main.cpp src/win32_userdata.cpp src/win32_api.cpp)
-
 add_executable(tests src/test.cpp)
