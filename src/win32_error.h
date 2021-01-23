@@ -1,12 +1,12 @@
 #pragma once
 
-#include <windows.h>
 #include <stdexcept>
+#include "win32_api.h"
 
 class win32_error : public std::runtime_error
 {
 public:
-    win32_error(const char* function, DWORD code = GetLastError())
+    win32_error(const char* function, DWORD code)
         : std::runtime_error{function}
         , m_code{code}
     {}

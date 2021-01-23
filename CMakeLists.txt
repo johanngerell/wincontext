@@ -23,6 +23,8 @@ endif()
 
 if(MSVC)
     add_executable(wincontext WIN32 src/main.cpp src/win32_userdata.cpp src/win32_api.cpp)
+else()
+    add_executable(wincontext src/main.cpp src/win32_userdata.cpp src/win32_api.cpp)
 endif()
 
 add_executable(tests src/test.cpp)

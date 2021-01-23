@@ -45,17 +45,17 @@ LRESULT CALLBACK main_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         case WM_CHAR:
             switch (wm_char_key(wp, lp))
             {
-                case 'g': SetWindowTextA(hwnd, benchmark_userdata_access().c_str()); break;
-                case 'q': DestroyWindow(hwnd); break;
+                case 'g': set_window_text(hwnd, benchmark_userdata_access().c_str()); break;
+                case 'q': destroy_window(hwnd); break;
             }
             return 0;
 
         case WM_DESTROY:
-            PostQuitMessage(0);
+            post_quit_message(0);
             return 0;
 
         default:
-            return DefWindowProc(hwnd, msg, wp, lp);
+            return def_wndproc(hwnd, msg, wp, lp);
     }
 }
 
@@ -109,11 +109,19 @@ void create_data()
         g_userdata->set(g_labels[i], &g_data[i]);
 }
 
+#ifdef _WIN32
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
+#else
+int main(int argc, char** argv)
+#endif
 {
     try
     {
+#ifdef _WIN32
         const app_options options{{__argc, __argv}};
+#else
+        const app_options options{{argc, argv}};
+#endif
         g_userdata = create_userdata(options.kind);
         create_main_window(options.layout, options.grid);
         create_labels(options.layout, options.grid);
@@ -123,7 +131,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     }
     catch(const std::exception& e)
     {
-        MessageBoxA(nullptr, e.what(), "Error", MB_OK);
+        message_box(nullptr, "Error", e.what(), MB_OK);
     }
 
     return 0;

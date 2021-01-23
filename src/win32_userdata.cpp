@@ -56,12 +56,21 @@ struct userdata_1 final : userdata
 
     virtual void set(HWND hwnd, void* data) override
     {
+#ifdef _WIN32
         SetWindowLongPtrA(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(data));
+#else
+        (void)hwnd; (void)data;
+#endif
     }
 
     virtual void* get(HWND hwnd) override
     {
+#ifdef _WIN32
         return reinterpret_cast<void*>(GetWindowLongPtrA(hwnd, GWLP_USERDATA));
+#else
+        (void)hwnd;
+        return nullptr;
+#endif
     }
 };
 
@@ -74,18 +83,29 @@ struct userdata_2 final : userdata
 
     virtual void set(HWND hwnd, void* data) override
     {
+#ifdef _WIN32
         SetPropA(hwnd, "userdata", data);
+#else
+        (void)hwnd; (void)data;
+#endif
     }
 
     virtual void* get(HWND hwnd) override
     {
+#ifdef _WIN32
         return reinterpret_cast<void*>(GetPropA(hwnd, "userdata"));
+#else
+        (void)hwnd;
+        return nullptr;
+#endif
     }
 };
 
 struct userdata_3 final : userdata
 {
+#ifdef _WIN32
     ATOM userdata_atom = GlobalAddAtomA("userdata");
+#endif
 
     virtual const char* description() override
     {
@@ -94,12 +114,21 @@ struct userdata_3 final : userdata
 
     virtual void set(HWND hwnd, void* data) override
     {
+#ifdef _WIN32
         SetPropA(hwnd, reinterpret_cast<const char*>(static_cast<long long>(MAKELONG(userdata_atom, 0))), data);
+#else
+        (void)hwnd; (void)data;
+#endif
     }
 
     virtual void* get(HWND hwnd) override
     {
+#ifdef _WIN32
         return reinterpret_cast<void*>(GetPropA(hwnd, reinterpret_cast<const char*>(static_cast<long long>(MAKELONG(userdata_atom, 0)))));
+#else
+        (void)hwnd;
+        return nullptr;
+#endif
     }
 };
 

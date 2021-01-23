@@ -1,7 +1,7 @@
 #pragma once
 
-#include <windows.h>
 #include <memory>
+#include "win32_api.h"
 
 enum class userdata_kind
 {
