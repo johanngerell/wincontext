@@ -109,19 +109,17 @@ void create_data()
         g_userdata->set(g_labels[i], &g_data[i]);
 }
 
-#ifdef _WIN32
+jg::args g_args;
+
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
-#else
-int main(int argc, char** argv)
-#endif
 {
+#ifdef _WIN32
+        g_args = {__argc, __argv};
+#endif
+
     try
     {
-#ifdef _WIN32
-        const app_options options{{__argc, __argv}};
-#else
-        const app_options options{{argc, argv}};
-#endif
+        const app_options options{g_args};
         g_userdata = create_userdata(options.kind);
         create_main_window(options.layout, options.grid);
         create_labels(options.layout, options.grid);
@@ -136,3 +134,11 @@ int main(int argc, char** argv)
 
     return 0;
 }
+
+#ifndef _WIN32
+int main(int argc, char** argv)
+{
+    g_args = {argc, argv};
+    return WinMain(nullptr, nullptr, nullptr, SW_SHOWNORMAL);
+}
+#endif

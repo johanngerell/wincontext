@@ -1,9 +1,16 @@
 #pragma once
 
 #ifndef _WIN32
-    #define CALLBACK
+    // https://docs.microsoft.com/en-us/windows/win32/winprog/windows-data-types
+    #define CALLBACK //__stdcall
+    #define WINAPI //__stdcall
     using DWORD = unsigned long;
     using LONG = signed long;
+    typedef void *PVOID;
+    typedef PVOID HANDLE;
+    typedef HANDLE HINSTANCE;
+    typedef char CHAR;
+    typedef CHAR *LPSTR;
     using HWND = void*;
     using UINT = unsigned int;
     using WPARAM = unsigned long;
@@ -17,6 +24,7 @@
            WS_POPUPWINDOW = WS_POPUP | WS_BORDER | WS_SYSMENU,
            SS_BLACKFRAME = 0x7L };
     enum { MB_OK = 0x0L };
+    enum { SW_SHOWNORMAL = 1 };
 #endif
 
 const char* register_window_class(WNDPROC wndproc, const char* name);
