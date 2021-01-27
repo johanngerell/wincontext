@@ -19,7 +19,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "debug/wincontext.exe",
-            "args": ["option:1", "grid:10,10,10", "layout:10,20,20"],
+            "args": ["option:1", "grid:10,10,10", "layout:10,20,20"], // option:1 grid:10,10,10 layout:10,20,20
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
