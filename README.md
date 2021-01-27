@@ -23,3 +23,9 @@ Build one target in Debug:
 
     > cd build\debug
     > cmake --build . --target tests
+
+## Submodules
+
+Update all submodules in `submodules/` with
+
+    > git submodule update --recursive --remote --merge
