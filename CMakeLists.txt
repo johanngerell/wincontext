@@ -26,5 +26,3 @@ if(MSVC)
 else()
     add_executable(wincontext src/main.cpp src/win32_userdata.cpp src/win32_api.cpp)
 endif()
-
-add_executable(tests src/test.cpp)
