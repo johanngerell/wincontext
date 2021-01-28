@@ -28,4 +28,8 @@ Build one target in Debug:
 
 Update all submodules in `submodules/` with
 
+    > git submodule update --recursive --remote
+
+Not sure what `--merge` does here, but it might be needed.
+
     > git submodule update --recursive --remote --merge
